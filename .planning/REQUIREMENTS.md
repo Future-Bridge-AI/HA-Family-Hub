@@ -123,12 +123,56 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
+| FOUND-01 | Phase 1 | Pending |
+| FOUND-02 | Phase 1 | Pending |
+| FOUND-03 | Phase 1 | Pending |
+| FOUND-04 | Phase 1 | Pending |
+| FOUND-05 | Phase 1 | Pending |
+| FOUND-06 | Phase 1 | Pending |
+| FOUND-07 | Phase 1 | Pending |
+| FOUND-08 | Phase 1 | Pending |
+| FOUND-09 | Phase 1 | Pending |
+| DEV-01 | Phase 2 | Pending |
+| DEV-02 | Phase 2 | Pending |
+| DEV-03 | Phase 2 | Pending |
+| PREV-01 | Phase 2 | Pending |
+| PREV-02 | Phase 2 | Pending |
+| PREV-03 | Phase 2 | Pending |
+| PREV-04 | Phase 2 | Pending |
+| PREV-05 | Phase 2 | Pending |
+| PREV-06 | Phase 2 | Pending |
+| PREV-07 | Phase 2 | Pending |
+| PREV-08 | Phase 2 | Pending |
+| ACCESS-01 | Phase 2 | Pending |
+| ACCESS-02 | Phase 2 | Pending |
+| ACCESS-03 | Phase 2 | Pending |
+| ACCESS-04 | Phase 2 | Pending |
+| ACCESS-05 | Phase 2 | Pending |
+| TEST-01 | Phase 3 | Pending |
+| TEST-02 | Phase 3 | Pending |
+| TEST-03 | Phase 3 | Pending |
+| TEST-04 | Phase 3 | Pending |
+| TEST-05 | Phase 3 | Pending |
+| CI-01 | Phase 3 | Pending |
+| CI-02 | Phase 3 | Pending |
+| CI-03 | Phase 3 | Pending |
+| CI-04 | Phase 3 | Pending |
+| LOOP-01 | Phase 4 | Pending |
+| LOOP-02 | Phase 4 | Pending |
+| LOOP-03 | Phase 4 | Pending |
+| LOOP-04 | Phase 4 | Pending |
+| LOOP-05 | Phase 4 | Pending |
+| REL-01 | Phase 4 | Pending |
+| REL-02 | Phase 4 | Pending |
+| REL-03 | Phase 4 | Pending |
+| REL-04 | Phase 4 | Pending |
 
 **Coverage:**
 - v1 requirements: 43 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 43
+- Mapped to phases: 43
+- Unmapped: 0
+- Per phase: Phase 1 = 9 (FOUND), Phase 2 = 16 (DEV, PREV, ACCESS), Phase 3 = 9 (TEST, CI), Phase 4 = 9 (LOOP, REL)
 
 ---
 *Requirements defined: 2026-10-26*
-*Last updated: 2026-10-26 after initial definition*
+*Last updated: 2026-10-26 after roadmap creation (traceability mapped)*
