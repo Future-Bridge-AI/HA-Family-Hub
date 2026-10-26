@@ -1,0 +1,28 @@
+# Sources: https://hacs.xyz/docs/publish/action/ and https://github.com/home-assistant/actions
+# Non-blocking: not a required check. The first failure list is recorded in .planning/phases/01-clean-foundation/01-VALIDATION-BASELINE.md and fixed in Phase 3.
+name: Validate
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch: {}
+
+permissions: {}
+
+jobs:
+  hacs:
+    name: HACS validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: hacs/action@main
+        with:
+          category: integration
+
+  hassfest:
+    name: hassfest
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: home-assistant/actions/hassfest@master
