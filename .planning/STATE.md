@@ -5,16 +5,16 @@ milestone_name: Family Preview Loop
 current_phase: 01
 current_phase_name: Clean Foundation
 status: executing
-stopped_at: Completed 01-06-PLAN.md
-last_updated: "2026-10-26T23:08:48.433Z"
+stopped_at: Completed 01-04-PLAN.md
+last_updated: "2026-10-26T23:47:30.448Z"
 last_activity: 2026-10-26
 last_activity_desc: Phase 01 execution started
-state_head: 36b8851b77317d66b6a9458bc976041270b9d6ca
+state_head: e3e1706372a1e9c960a010376a984cfd386f1361
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 7
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # Project State
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-10-26)
 ## Current Position
 
 Phase: 01 (Clean Foundation) — EXECUTING
-Plan: 5 of 7
+Plan: 6 of 7
 Status: Ready to execute
 Last activity: 2026-10-26 — Phase 01 execution started
 
@@ -61,6 +61,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01 P03 | 5 min | 3 tasks | 8 files |
 | Phase 01 P02 | 1 min | 2 tasks | 14 files |
 | Phase 01 P06 | 1 min | 1 tasks | 10 files |
+| Phase 01 P04 | 36 min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -79,6 +80,8 @@ Recent decisions affecting current work:
 - [Phase 01]: validate.yml uses floating refs hacs/action@main and hassfest@master per D-22; Phase 3 pins commit SHAs
 - [Phase 01]: Plan 01-02 deleted all 14 root card and panel .js duplicates in one deletion-only commit (b7353c6); no port commit needed since every triage row was discarded
 - [Phase 01]: Plan 01-06 moved it, nl, pl, pt and pt-BR into translations/ as five R100 renames; pt and pt-BR stay separate identical files
+- [Phase 01]: Fork version starts at 2.0.0 (D-19, developer chose fork-2-0-0); tags vX.Y.Z equal manifest.json, strictly increasing
+- [Phase 01]: versions.env is the single HA pin source (2026.10.4); hacs.json minimum is 2024.12.0 (D-20, D-21)
 
 ### Pending Todos
 
@@ -108,6 +111,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-26T23:08:48.387Z
-Stopped at: Completed 01-06-PLAN.md
+Last session: 2026-10-26T23:47:30.400Z
+Stopped at: Completed 01-04-PLAN.md
 Resume file: None
