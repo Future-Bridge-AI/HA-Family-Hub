@@ -1,0 +1,33 @@
+{
+  "contract": "1.0.0",
+  "flavor": "core",
+  "milestone": "v1.0 — Family Preview Loop",
+  "phases": [
+    {
+      "number": "1",
+      "name": "Clean Foundation",
+      "status": "in_progress"
+    },
+    {
+      "number": "2",
+      "name": "Dev + Family Preview",
+      "status": "pending"
+    },
+    {
+      "number": "3",
+      "name": "Safety Net",
+      "status": "pending"
+    },
+    {
+      "number": "4",
+      "name": "Family-Led Customisation Loop",
+      "status": "pending"
+    }
+  ],
+  "next": {
+    "command": "/gsd-progress --next",
+    "label": "Advance to the next step",
+    "reason": "Phase 1 of 4 · executing"
+  },
+  "updated_at": "2026-10-26T14:07:08.962Z"
+}
