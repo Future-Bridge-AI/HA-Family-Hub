@@ -15,8 +15,8 @@ Requirements for milestone 1. Each maps to one roadmap phase.
 - [ ] **FOUND-01**: Developer can edit a card or panel and the change can only land in the served copy — root-level duplicate `.js` files and `card/family-week-calendar-card.js.bak_divfix` are removed after a per-file diff review, and any root-only content worth keeping is ported into `card/` or `panel/` first
 - [ ] **FOUND-02**: Users with Italian, Dutch, Polish, Portuguese or Brazilian Portuguese selected see Family Hub in their language — `it`, `nl`, `pl`, `pt`, `pt-BR` live in `translations/` and are loaded by HA (key parity with `translations/en.json` already verified: 2,139 keys each)
 - [ ] **FOUND-03**: Translation files exist in exactly one place — the truncated root `de`/`en`/`es`/`fr.json` are removed after the 9 root-only keys in `de`/`es` are reviewed and ported if wanted, and the unused `strings.json` is removed; the `fh_ui` category is preserved
-- [ ] **FOUND-04**: The repository tracks no compiled Python (`__pycache__/*.pyc` untracked) and `.gitignore` covers `.env`, `*.bak*`, `family_hub_backups/` and HA `.storage/`
-- [ ] **FOUND-05**: Repo hygiene is clean — `\Screenshots/` renamed or removed (references updated), duplicate icon/logo files removed after checksum compare, empty `custom_components/family_hub/readme.md` removed
+- [x] **FOUND-04**: The repository tracks no compiled Python (`__pycache__/*.pyc` untracked) and `.gitignore` covers `.env`, `*.bak*`, `family_hub_backups/` and HA `.storage/`
+- [x] **FOUND-05**: Repo hygiene is clean — `\Screenshots/` renamed or removed (references updated), duplicate icon/logo files removed after checksum compare, empty `custom_components/family_hub/readme.md` removed
 - [ ] **FOUND-06**: The fork has its own identity — `manifest.json` documentation, issue tracker and codeowners, README badges/links, HACS links and the docs site config point at `Future-Bridge-AI/HA-Family-Hub`, with upstream credit and GPLv3 kept; `domain`, service names, websocket prefixes and card tags are unchanged
 - [ ] **FOUND-07**: Fork versioning scheme is decided and recorded (continue strictly above 1.168.85, e.g. 1.169.0) and the next version is set in `manifest.json`
 - [ ] **FOUND-08**: The declared minimum HA version in `hacs.json` matches what the code actually needs and what is tested, and a single pinned HA version is recorded for Dev, Preview and tests
@@ -126,8 +126,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FOUND-01 | Phase 1 | Pending |
 | FOUND-02 | Phase 1 | Pending |
 | FOUND-03 | Phase 1 | Pending |
-| FOUND-04 | Phase 1 | Pending |
-| FOUND-05 | Phase 1 | Pending |
+| FOUND-04 | Phase 1 | Complete |
+| FOUND-05 | Phase 1 | Complete |
 | FOUND-06 | Phase 1 | Pending |
 | FOUND-07 | Phase 1 | Pending |
 | FOUND-08 | Phase 1 | Pending |

@@ -5,16 +5,16 @@ milestone_name: Family Preview Loop
 current_phase: 01
 current_phase_name: Clean Foundation
 status: executing
-stopped_at: Phase 1 context gathered
-last_updated: "2026-10-26T14:07:08.940Z"
+stopped_at: Completed 01-01-PLAN.md
+last_updated: "2026-10-26T23:00:47.308Z"
 last_activity: 2026-10-26
 last_activity_desc: Phase 01 execution started
-state_head: 57243fc1aba78df4cca307ba0d13cdd2c8c046bc
+state_head: 9acc8329444ab5167b7a72971f4eeecec7f27b49
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 7
-  completed_plans: 0
+  completed_plans: 1
 ---
 
 # Project State
@@ -29,8 +29,8 @@ See: .planning/PROJECT.md (updated 2026-10-26)
 ## Current Position
 
 Phase: 01 (Clean Foundation) — EXECUTING
-Plan: 1 of 7
-Status: Executing Phase 01
+Plan: 2 of 7
+Status: Ready to execute
 Last activity: 2026-10-26 — Phase 01 execution started
 
 Progress: [░░░░░░░░░░] 0%
@@ -53,6 +53,11 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: -
 
 *Updated after each plan completion*
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 01 P01 | n/a | 3 tasks | 72 files |
 
 ## Accumulated Context
 
@@ -65,6 +70,8 @@ Recent decisions affecting current work:
 - [Roadmap]: All phases are in MVP mode with user-story goals. From Phase 2 on, success criteria are things she does and sees in Preview.
 - [Phase 1 due]: Fork version scheme (recommend continuing above 1.168.85, next 1.169.0), the real minimum HA version for `hacs.json`, and one pinned HA tag for Dev, Preview and tests (research recommends 2026.10.4).
 - [Phase 2 due]: Where Preview runs (always-on Docker host, not the laptop). Preview is a separate instance from Home. Access is LAN-only (Tailscale deferred to v2).
+- [Phase 01]: All 14 root .js duplicates triaged as discarded (no hunk to port); recorded in 01-TRIAGE.md
+- [Phase 01]: Hassfest run only via the owner-approved pinned harness at $HOME/.cache/fh-hassfest against an index export; state (a) baseline errors left unfixed for Phase 3
 
 ### Pending Todos
 
@@ -94,6 +101,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-26T07:34:23.334Z
-Stopped at: Phase 1 context gathered
-Resume file: .planning/phases/01-clean-foundation/01-CONTEXT.md
+Last session: 2026-10-26T23:00:47.263Z
+Stopped at: Completed 01-01-PLAN.md
+Resume file: None
