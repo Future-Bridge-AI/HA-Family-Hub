@@ -36,14 +36,16 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. A fresh clone tracks no `.pyc` files and has no `\Screenshots/` folder, no duplicate icon or logo files and no empty `custom_components/family_hub/readme.md`. `.gitignore` covers `.env`, `*.bak*`, `family_hub_backups/` and `.storage/`.
   4. `manifest.json` links, codeowners, README badges, HACS links and the docs site all point at `Future-Bridge-AI/HA-Family-Hub`, with upstream credit and GPLv3 intact. `manifest.json` carries the next fork version under the recorded version scheme. `domain`, service names, websocket prefixes and card tags are unchanged.
   5. One pinned HA version is recorded for Dev, Preview and tests. The minimum HA version in `hacs.json` matches what the code actually needs. The failure list from the first hassfest and HACS validation run is written down for the Safety Net phase.
-**Plans:** 5 plans
+**Plans:** 7 plans
 
 Plans:
 - [ ] 01-01-PLAN.md — Untrack bytecode, write the triage record, remove junk files, extend .gitignore (wave 1)
-- [ ] 01-02-PLAN.md — One served copy: delete root card/panel duplicates and .bak_divfix, move it/nl/pl/pt/pt-BR into translations/, delete root translations and strings.json (wave 2)
+- [ ] 01-02-PLAN.md — One served copy of each card and panel: port any root-only hunk the triage marks "ported hunk" (own commit), then delete the 14 root card/panel duplicates (wave 2)
 - [ ] 01-03-PLAN.md — Fork identity in manifest, README and the docs site, plus the non-blocking validate.yml workflow (wave 1)
 - [ ] 01-04-PLAN.md — versions.env pin 2026.10.4, hacs.json minimum 2024.12.0, D-19 version checkpoint, then manifest 1.169.0 (wave 2, has checkpoint)
-- [ ] 01-05-PLAN.md — Validation baseline: local hassfest, HACS prediction, Phase 1 sweep, the developer's hosted run recorded (wave 3, has checkpoint)
+- [ ] 01-06-PLAN.md — Move it/nl/pl/pt/pt-BR into translations/ unchanged (wave 2)
+- [ ] 01-07-PLAN.md — Delete the truncated root translations and strings.json, then the .bak_divfix backup (wave 3)
+- [ ] 01-05-PLAN.md — Validation baseline: local hassfest, HACS prediction, Phase 1 sweep, the developer's hosted run recorded (wave 4, runs last, has checkpoint)
 **UI hint**: no
 **Research:** Not needed. The hassfest/HACS validation spike inside this phase is the research.
 
@@ -122,7 +124,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4. Phase 3 depends only on Ph
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Clean Foundation | 0/5 | Planned | - |
+| 1. Clean Foundation | 0/7 | Planned | - |
 | 2. Dev + Family Preview | 0/TBD | Not started | - |
 | 3. Safety Net | 0/TBD | Not started | - |
 | 4. Family-Led Customisation Loop | 0/TBD | Not started | - |

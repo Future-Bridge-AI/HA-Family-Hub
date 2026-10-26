@@ -38,14 +38,14 @@ All of these exist already, unless the row says Phase 1 sets them.
 
 ## Stack Touched in Phase 1
 
-Every scaffold item already exists upstream. Phase 1 changes repository contents only. It makes no runtime change.
+Every scaffold item already exists upstream. Phase 1 changes repository contents only. It makes no runtime change, with one allowed exception: a root-only fix that the per-file triage records as worth porting goes into its served copy in its own commit (D-01, plan 01-02). Research found none.
 
 - [x] Project scaffold (framework, build, lint, test runner): **already exists** (HA custom integration and build-free JS). Lint and test runner arrive in Phase 3.
 - [x] Routing: **already exists** (static paths for cards and panels; websocket and service registration).
 - [x] Database: **already exists** (HA `Store` per feature, with backups).
 - [x] UI: **already exists** (Lovelace cards and the Theme Builder panel calling `family_hub/...` websocket commands).
 - [ ] Deployment: Phase 2 (one-command Dev, then the always-on Family Preview).
-- [x] Phase 1 contract work: one served copy (plans 01-01, 01-02), fork identity (01-03), version scheme and HA versions (01-04), validation baseline (01-05).
+- [x] Phase 1 contract work: one served copy (plans 01-01, 01-02, 01-06, 01-07), fork identity (01-03), version scheme and HA versions (01-04), validation baseline (01-05).
 
 ## Out of Scope (Deferred to Later Slices)
 
