@@ -5,16 +5,16 @@ milestone_name: Family Preview Loop
 current_phase: 01
 current_phase_name: Clean Foundation
 status: executing
-stopped_at: Completed 01-04-PLAN.md
-last_updated: "2026-10-26T23:47:30.448Z"
+stopped_at: Completed 01-07-PLAN.md
+last_updated: "2026-10-26T23:49:49.864Z"
 last_activity: 2026-10-26
 last_activity_desc: Phase 01 execution started
-state_head: e3e1706372a1e9c960a010376a984cfd386f1361
+state_head: f8a0adc3cc83186b05fc8e4f8d9ea19f10657470
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 7
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 # Project State
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-10-26)
 ## Current Position
 
 Phase: 01 (Clean Foundation) — EXECUTING
-Plan: 6 of 7
+Plan: 7 of 7
 Status: Ready to execute
 Last activity: 2026-10-26 — Phase 01 execution started
 
@@ -62,6 +62,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01 P02 | 1 min | 2 tasks | 14 files |
 | Phase 01 P06 | 1 min | 1 tasks | 10 files |
 | Phase 01 P04 | 36 min | 3 tasks | 6 files |
+| Phase 01 P07 | 1 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -82,6 +83,7 @@ Recent decisions affecting current work:
 - [Phase 01]: Plan 01-06 moved it, nl, pl, pt and pt-BR into translations/ as five R100 renames; pt and pt-BR stay separate identical files
 - [Phase 01]: Fork version starts at 2.0.0 (D-19, developer chose fork-2-0-0); tags vX.Y.Z equal manifest.json, strictly increasing
 - [Phase 01]: versions.env is the single HA pin source (2026.10.4); hacs.json minimum is 2024.12.0 (D-20, D-21)
+- [Phase 01]: 01-07: root de/en/es/fr.json and strings.json deleted; translations/ is the only translation location; 9 orphan keys not ported (D-06); fh_ui preserved (D-09)
 
 ### Pending Todos
 
@@ -111,6 +113,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-26T23:47:30.400Z
-Stopped at: Completed 01-04-PLAN.md
+Last session: 2026-10-26T23:49:49.817Z
+Stopped at: Completed 01-07-PLAN.md
 Resume file: None
