@@ -23,7 +23,7 @@ last_mapped_at: 2026-10-26
 ## Runtime
 
 **Backend environment:**
-- Home Assistant Core (custom integration loaded from `custom_components/family_hub/`); minimum supported HA version declared as `homeassistant: 2024.1.0` in `hacs.json`
+- Home Assistant Core (custom integration loaded from `custom_components/family_hub/`); minimum supported HA version declared as `homeassistant: 2024.12.0` in `hacs.json`; Dev, Preview and tests pinned to 2026.10.4 in `versions.env`
 - Asyncio event loop; blocking work is pushed to executors (e.g. `hass.async_add_executor_job` used for PBKDF2 PIN hashing in `custom_components/family_hub/chores_websocket_api.py` and the zip updater in `custom_components/family_hub/updater.py`)
 
 **Frontend environment:**
@@ -102,7 +102,7 @@ last_mapped_at: 2026-10-26
 ## Platform Requirements
 
 **Development:**
-- Home Assistant Core development or test instance (min 2024.1.0 per `hacs.json`)
+- Home Assistant Core development or test instance (pinned 2026.10.4 per `versions.env`; min 2024.12.0 per `hacs.json`)
 - Python 3.10+ for editing/compiling backend modules
 - Node.js 20+ and npm for the docs site in `website/`
 - No linter, formatter, or test runner configuration is tracked in the repository

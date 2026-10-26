@@ -23,7 +23,7 @@ the real calendars and lists.
 ### Constraints
 
 - **License**: GPLv3 — the fork is a derivative work; distribution must stay GPLv3 and keep upstream credit
-- **Platform**: Home Assistant custom integration, HA >= 2024.1, HACS custom repository — the install path the family setup already depends on
+- **Platform**: Home Assistant custom integration, HA >= 2024.12.0 (declared in hacs.json; Dev, Preview and tests pinned to 2026.10.4 in versions.env), HACS custom repository — the install path the family setup already depends on
 - **Tech stack**: Python on HA Core APIs (no extra Python deps), vanilla JS web components with no bundler — keep the existing build-free delivery
 - **Locality**: everything runs locally; no cloud services — upstream design and family privacy
 - **Safety**: Preview must be isolated from the family's real HA and real calendars — experiments must never break the real setup
@@ -50,7 +50,7 @@ the real calendars and lists.
 
 ## Runtime
 
-- Home Assistant Core (custom integration loaded from `custom_components/family_hub/`); minimum supported HA version declared as `homeassistant: 2024.1.0` in `hacs.json`
+- Home Assistant Core (custom integration loaded from `custom_components/family_hub/`); minimum supported HA version declared as `homeassistant: 2024.12.0` in `hacs.json`; Dev, Preview and tests pinned to 2026.10.4 in `versions.env`
 - Asyncio event loop; blocking work is pushed to executors (e.g. `hass.async_add_executor_job` used for PBKDF2 PIN hashing in `custom_components/family_hub/chores_websocket_api.py` and the zip updater in `custom_components/family_hub/updater.py`)
 - Browsers and HA companion/kiosk WebViews rendering Lovelace dashboards; cards are registered as Web Components via `customElements.define(...)` in each file under `custom_components/family_hub/card/` and `custom_components/family_hub/panel/`
 - Node.js `>=20.0` (`website/package.json` `engines`); CI uses Node 20 (`.github/workflows/deploy-docs.yml`)
@@ -97,7 +97,7 @@ the real calendars and lists.
 
 ## Platform Requirements
 
-- Home Assistant Core development or test instance (min 2024.1.0 per `hacs.json`)
+- Home Assistant Core development or test instance (pinned 2026.10.4 per `versions.env`; min 2024.12.0 per `hacs.json`)
 - Python 3.10+ for editing/compiling backend modules
 - Node.js 20+ and npm for the docs site in `website/`
 - No linter, formatter, or test runner configuration is tracked in the repository

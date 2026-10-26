@@ -26,7 +26,7 @@ the real calendars and lists.
 
 <!-- Inferred from the existing codebase (.planning/codebase/). Shipped upstream and working. -->
 
-- ✓ HA custom integration installable via HACS custom repository, config flow + options flow (`config_flow.py`, HA >= 2024.1) — existing
+- ✓ HA custom integration installable via HACS custom repository, config flow + options flow (`config_flow.py`, HA >= 2024.12.0) — existing
 - ✓ Family week calendar card: Week / Month / Planner / Agenda views, meals, in-card Settings, More menu, Right Now bar (`card/family-week-calendar-card.js`) — existing
 - ✓ Today and Right Now cards: at-a-glance today, presence, current/next event — existing
 - ✓ Chores → stars → rewards, goals and routines with engines and cards (`chore_engine.py`, `reward_engine.py`, `goal_engine.py`, `routine_engine.py`, chores/my-chores/rewards/goals cards) — existing
@@ -107,7 +107,7 @@ the real calendars and lists.
 ## Constraints
 
 - **License**: GPLv3 — the fork is a derivative work; distribution must stay GPLv3 and keep upstream credit
-- **Platform**: Home Assistant custom integration, HA >= 2024.1, HACS custom repository — the install path the family setup already depends on
+- **Platform**: Home Assistant custom integration, HA >= 2024.12.0 (declared in hacs.json; Dev, Preview and tests pinned to 2026.10.4 in versions.env), HACS custom repository — the install path the family setup already depends on
 - **Tech stack**: Python on HA Core APIs (no extra Python deps), vanilla JS web components with no bundler — keep the existing build-free delivery
 - **Locality**: everything runs locally; no cloud services — upstream design and family privacy
 - **Safety**: Preview must be isolated from the family's real HA and real calendars — experiments must never break the real setup
@@ -129,6 +129,7 @@ the real calendars and lists.
 | How she reaches Preview (home Wi-Fi only vs Tailscale / Nabu Casa) | Simplicity vs access from anywhere | — Pending (decide in Preview phase) |
 | Fork versioning: continue 1.168.x or start own scheme | Manifest/changelog already disagree upstream | — Pending (decide in foundation phase) |
 | Test harness: `pytest-homeassistant-custom-component` preferred over a hand-built stub | Real HA test fixtures | — Pending |
+| Home Assistant versions: pinned 2026.10.4 for Dev, Preview and tests (versions.env); minimum 2024.12.0 in hacs.json | 2024.12.0 is the first release with every API the code imports (StaticPathConfig 2024.7, calendar DATA_COMPONENT 2024.10, no-arg OptionsFlow config_entry 2024.12); a higher floor could block Home from updating | ✓ Decided in Phase 1 (D-20, D-21) |
 
 ## Evolution
 
