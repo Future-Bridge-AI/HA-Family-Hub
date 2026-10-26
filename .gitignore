@@ -4,3 +4,8 @@ __pycache__/
 node_modules/
 .DS_Store
 *.zip
+.env
+*.bak*
+family_hub_backups/
+.storage/
+dev/.ha-*
