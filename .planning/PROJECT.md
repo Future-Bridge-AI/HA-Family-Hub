@@ -127,7 +127,7 @@ the real calendars and lists.
 | Where Preview runs (always-on home machine via Docker Compose recommended vs laptop) | Must be always-on for her | — Pending (decide in Preview phase) |
 | Separate Preview HA instance if a Home HA already runs | Isolation from real setup | — Pending (decide in Preview phase) |
 | How she reaches Preview (home Wi-Fi only vs Tailscale / Nabu Casa) | Simplicity vs access from anywhere | — Pending (decide in Preview phase) |
-| Fork versioning: continue 1.168.x or start own scheme | Manifest/changelog already disagree upstream | — Pending (decide in foundation phase) |
+| Fork versioning: continue 1.168.x or start own scheme | Manifest/changelog already disagree upstream | ✓ Decided in Phase 1 (D-19): next version 2.0.0 in manifest.json; git tags are v2.0.0-style vX.Y.Z equal to manifest.json; every release is strictly greater than the previous one (numeric comparison) and no published number is reused; HACS update detection needs a published GitHub Release (Phase 4 REL-01) |
 | Test harness: `pytest-homeassistant-custom-component` preferred over a hand-built stub | Real HA test fixtures | — Pending |
 | Home Assistant versions: pinned 2026.10.4 for Dev, Preview and tests (versions.env); minimum 2024.12.0 in hacs.json | 2024.12.0 is the first release with every API the code imports (StaticPathConfig 2024.7, calendar DATA_COMPONENT 2024.10, no-arg OptionsFlow config_entry 2024.12); a higher floor could block Home from updating | ✓ Decided in Phase 1 (D-20, D-21) |
 
