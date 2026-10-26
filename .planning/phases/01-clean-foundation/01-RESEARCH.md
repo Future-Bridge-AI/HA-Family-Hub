@@ -597,24 +597,24 @@ git diff --stat HEAD~N -- custom_components/family_hub/const.py custom_component
 | A5 | Release date of HA 2024.12.0 is early December 2024 (not needed by any decision) | Minimum HA | None |
 | A6 | Floor = 2024.12.0 is the maximum over *imported* APIs; no behaviour-only dependency (entity/registry semantics, frontend message formats) raises it further | Minimum HA | Integration might misbehave on 2024.12-2025.x in an untested path; mitigated by Home already running something recent and Phase 3 CI testing only 2026.10.4 |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **What HA version does Home run today?**
+1. **What HA version does Home run today?** — RESOLVED (carried by plan 01-05): the developer reads Home's version (Settings → About) at the 01-05 Task 2 checkpoint, 01-05 Task 3 records it in PROJECT.md "Context" against the 2024.12.0 minimum, and the baseline's manual step 7 repeats the check. It does not change the 2024.12.0 floor set by 01-04 (D-21), so Phase 1 is not blocked.
    - Known: upstream v1.168.85 (currently installed) needs ≥ 2024.12 for its options flow, so Home is probably ≥ 2024.12.
    - Unclear: the exact version. If it is ≥ 2025.x, the floor could be raised later for free.
    - Recommendation: planner adds a one-line check to the developer's manual steps (Settings → About) and records it in PROJECT.md; do not block Phase 1.
 
-2. **What tag format does upstream use for releases (`1.168.85` vs `v1.168.85`)?**
+2. **What tag format does upstream use for releases (`1.168.85` vs `v1.168.85`)?** — RESOLVED (deferred to Phase 4, REL-01/REL-02): D-19 fixes the fork's own tag format as `vX.Y.Z` equal to `manifest.json`, and 01-04 records that scheme in PROJECT.md. Phase 1 creates no tag or release, so the only remaining unknown (how Home's HACS stored its installed version) is read on Home when Phase 4 builds the release workflow.
    - Known: fork has no releases; `git tag` is empty locally; D-19 chooses `vX.Y.Z`. HACS compares with AwesomeVersion.
    - Unclear: whether Home's HACS stored the installed version as `v…` or bare; matters at REL-02.
    - Recommendation: defer to Phase 4; read Home's HACS "installed version" then.
 
-3. **LICENSE header vs HACS license check (D-16 conflict).**
+3. **LICENSE header vs HACS license check (D-16 conflict).** — RESOLVED (record in Phase 1, decide in Phase 3, CI-03): D-16 keeps `LICENSE` unchanged in Phase 1. 01-05 Task 1 records the failure as `HACS-03` in `01-VALIDATION-BASELINE.md`, and its manual step 6 hands the keep-or-move-the-notice choice to the developer in Phase 3.
    - Known: GitHub reports `NOASSERTION` for the fork; HACS fails on it; cause is the custom header/footer in `LICENSE`.
    - Unclear: developer's preference — keep the Bordello Labs notice inside `LICENSE` or move it out so GitHub recognises GPL-3.0.
    - Recommendation: Phase 1 records the failure only; ask the developer in Phase 3 before touching `LICENSE`.
 
-4. **Does the developer want the README "release" badge pointing at a repo with zero releases?**
+4. **Does the developer want the README "release" badge pointing at a repo with zero releases?** — RESOLVED (accepted, plan 01-03): the badge points at the fork per D-15 and reads "no releases" until Phase 4 publishes the first GitHub Release.
    - Recommendation: still point it at the fork per D-15; it will read "no releases" until Phase 4. Acceptable.
 
 ## Environment Availability
