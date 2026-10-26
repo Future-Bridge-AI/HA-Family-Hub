@@ -34,4 +34,4 @@ See [Calendar & Layout](/docs/features/calendar-and-layout) and the rest of the 
 
 ## Status
 
-Family Hub is in active beta development. Source, issue tracker, and releases all live on [GitHub](https://github.com/JVarhol/HA-Family-Hub). There's also ongoing discussion in the [original Home Assistant Community thread](https://community.home-assistant.io/t/ha-family-hub-a-ha-focused-alternative-to-skylight-nori-cozyla-etc/1025747) and on the Home Assistant Discord server.
+Family Hub is in active beta development. Source, issue tracker, and releases all live on [GitHub](https://github.com/Future-Bridge-AI/HA-Family-Hub). There's also ongoing discussion in the [original Home Assistant Community thread](https://community.home-assistant.io/t/ha-family-hub-a-ha-focused-alternative-to-skylight-nori-cozyla-etc/1025747) and on the Home Assistant Discord server.
