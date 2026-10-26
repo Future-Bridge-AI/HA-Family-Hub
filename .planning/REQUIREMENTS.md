@@ -17,7 +17,7 @@ Requirements for milestone 1. Each maps to one roadmap phase.
 - [ ] **FOUND-03**: Translation files exist in exactly one place — the truncated root `de`/`en`/`es`/`fr.json` are removed after the 9 root-only keys in `de`/`es` are reviewed and ported if wanted, and the unused `strings.json` is removed; the `fh_ui` category is preserved
 - [x] **FOUND-04**: The repository tracks no compiled Python (`__pycache__/*.pyc` untracked) and `.gitignore` covers `.env`, `*.bak*`, `family_hub_backups/` and HA `.storage/`
 - [x] **FOUND-05**: Repo hygiene is clean — `\Screenshots/` renamed or removed (references updated), duplicate icon/logo files removed after checksum compare, empty `custom_components/family_hub/readme.md` removed
-- [ ] **FOUND-06**: The fork has its own identity — `manifest.json` documentation, issue tracker and codeowners, README badges/links, HACS links and the docs site config point at `Future-Bridge-AI/HA-Family-Hub`, with upstream credit and GPLv3 kept; `domain`, service names, websocket prefixes and card tags are unchanged
+- [x] **FOUND-06**: The fork has its own identity — `manifest.json` documentation, issue tracker and codeowners, README badges/links, HACS links and the docs site config point at `Future-Bridge-AI/HA-Family-Hub`, with upstream credit and GPLv3 kept; `domain`, service names, websocket prefixes and card tags are unchanged
 - [ ] **FOUND-07**: Fork versioning scheme is decided and recorded (continue strictly above 1.168.85, e.g. 1.169.0) and the next version is set in `manifest.json`
 - [ ] **FOUND-08**: The declared minimum HA version in `hacs.json` matches what the code actually needs and what is tested, and a single pinned HA version is recorded for Dev, Preview and tests
 - [ ] **FOUND-09**: The first hassfest and HACS validation failures are known — validation has been run once and the failure list recorded for the safety-net work
@@ -128,7 +128,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FOUND-03 | Phase 1 | Pending |
 | FOUND-04 | Phase 1 | Complete |
 | FOUND-05 | Phase 1 | Complete |
-| FOUND-06 | Phase 1 | Pending |
+| FOUND-06 | Phase 1 | Complete |
 | FOUND-07 | Phase 1 | Pending |
 | FOUND-08 | Phase 1 | Pending |
 | FOUND-09 | Phase 1 | Pending |

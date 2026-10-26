@@ -5,16 +5,16 @@ milestone_name: Family Preview Loop
 current_phase: 01
 current_phase_name: Clean Foundation
 status: executing
-stopped_at: Completed 01-01-PLAN.md
-last_updated: "2026-10-26T23:00:47.308Z"
+stopped_at: Completed 01-03-PLAN.md
+last_updated: "2026-10-26T23:03:52.808Z"
 last_activity: 2026-10-26
 last_activity_desc: Phase 01 execution started
-state_head: 9acc8329444ab5167b7a72971f4eeecec7f27b49
+state_head: 4bc2549ce80f49581b3fec3e8e83e0b1198c98e1
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 7
-  completed_plans: 1
+  completed_plans: 2
 ---
 
 # Project State
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-10-26)
 ## Current Position
 
 Phase: 01 (Clean Foundation) — EXECUTING
-Plan: 2 of 7
+Plan: 3 of 7
 Status: Ready to execute
 Last activity: 2026-10-26 — Phase 01 execution started
 
@@ -58,6 +58,7 @@ Progress: [░░░░░░░░░░] 0%
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 01 P01 | n/a | 3 tasks | 72 files |
+| Phase 01 P03 | 5 min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -72,6 +73,8 @@ Recent decisions affecting current work:
 - [Phase 2 due]: Where Preview runs (always-on Docker host, not the laptop). Preview is a separate instance from Home. Access is LAN-only (Tailscale deferred to v2).
 - [Phase 01]: All 14 root .js duplicates triaged as discarded (no hunk to port); recorded in 01-TRIAGE.md
 - [Phase 01]: Hassfest run only via the owner-approved pinned harness at $HOME/.cache/fh-hassfest against an index export; state (a) baseline errors left unfixed for Phase 3
+- [Phase 01]: manifest.json key order left unchanged in 01-03 so hassfest's ordering error stays in the honest baseline; Phase 3 fixes it
+- [Phase 01]: validate.yml uses floating refs hacs/action@main and hassfest@master per D-22; Phase 3 pins commit SHAs
 
 ### Pending Todos
 
@@ -101,6 +104,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-26T23:00:47.263Z
-Stopped at: Completed 01-01-PLAN.md
+Last session: 2026-10-26T23:03:52.764Z
+Stopped at: Completed 01-03-PLAN.md
 Resume file: None
