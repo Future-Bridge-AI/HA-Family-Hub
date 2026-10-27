@@ -3,15 +3,15 @@ status: testing
 phase: 01-clean-foundation
 source: [01-VERIFICATION.md]
 started: 2026-10-27T07:43:01Z
-updated: 2026-10-27T07:56:37Z
+updated: 2026-10-27T08:00:17Z
 ---
 
 ## Current Test
 
-number: 2
-name: Resolve prohibition FOUND-04 (test tier): MUST NOT commit HA runtime state, integration backups or env files
+number: 3
+name: Resolve prohibition FOUND-05 (test tier): MUST NOT delete served brand art or make any runtime change
 expected: |
-  Accept the verifier evidence: 0 tracked .storage/, family_hub_backups/ or .env paths; git check-ignore confirms all three are ignored
+  Accept: icon.png and brand/* tracked and unchanged; git diff bc7e90c..HEAD on card/, panel/, *.py, services.yaml, de/en/es/fr translations, icon, brand shows only the .bak_divfix deletion
 awaiting: user response
 
 ## Tests
@@ -22,7 +22,7 @@ result: pass
 
 ### 2. Resolve prohibition FOUND-04 (test tier): MUST NOT commit HA runtime state, integration backups or env files
 expected: Accept the verifier evidence: 0 tracked .storage/, family_hub_backups/ or .env paths; git check-ignore confirms all three are ignored
-result: [pending]
+result: pass
 
 ### 3. Resolve prohibition FOUND-05 (test tier): MUST NOT delete served brand art or make any runtime change
 expected: Accept: icon.png and brand/* tracked and unchanged; git diff bc7e90c..HEAD on card/, panel/, *.py, services.yaml, de/en/es/fr translations, icon, brand shows only the .bak_divfix deletion
@@ -63,9 +63,9 @@ result: [pending]
 ## Summary
 
 total: 11
-passed: 1
+passed: 2
 issues: 0
-pending: 10
+pending: 9
 skipped: 0
 blocked: 0
 
