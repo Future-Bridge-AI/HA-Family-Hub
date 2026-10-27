@@ -42,17 +42,16 @@ the real calendars and lists.
 - ✓ 10 built-in themes plus custom themes via theme selector card — existing
 - ✓ i18n with full `de`, `en`, `es`, `fr` translations loaded by HA — existing
 - ✓ Docusaurus docs site deployed by `.github/workflows/deploy-docs.yml` — existing
+- ✓ Only the served `card/` and `panel/` copies exist: 14 root `.js` duplicates and the `.bak_divfix` backup removed after per-file triage (nothing needed porting) — Phase 1
+- ✓ Translations live only in `translations/`, now nine languages (`it`, `nl`, `pl`, `pt`, `pt-BR` added, 2,139 keys each); root `de`/`en`/`es`/`fr.json` and `strings.json` removed; `fh_ui` kept — Phase 1
+- ✓ No tracked `__pycache__/*.pyc`; `.gitignore` covers `.env`, `*.bak*`, `family_hub_backups/`, `.storage/`, `dev/.ha-*` — Phase 1
+- ✓ Repo hygiene: `\Screenshots/`, duplicate icons and the empty readme removed — Phase 1
+- ✓ Fork identity: manifest, README, HACS links and docs site point at `Future-Bridge-AI/HA-Family-Hub`, upstream credit and GPLv3 kept; version 2.0.0; HA pinned 2026.10.4, minimum 2024.12.0 — Phase 1
+- ✓ hassfest/HACS failure baseline recorded (`01-VALIDATION-BASELINE.md`, Validate run 40422777272) for the safety-net work — Phase 1
 
 ### Active
 
 <!-- Milestone 1 scope, from docs/onboarding-findings.md. Hypotheses until shipped and validated. -->
-
-**Clean foundation (invisible to the family)**
-- [ ] Remove stale root-level duplicate card `.js` files and the `card/family-week-calendar-card.js.bak_divfix` backup, so edits can only land in the served `card/` and `panel/` copies
-- [ ] Make translations consistent: move `it`, `nl`, `pl`, `pt`, `pt-BR` into `translations/` after a key-parity check against `translations/en.json`; delete the stale, truncated root `de`/`en`/`es`/`fr.json`
-- [ ] Untrack the 49 committed `__pycache__/*.pyc` files
-- [ ] Repo hygiene: rename `\Screenshots/` (or drop it if redundant with `images/readme/`), dedupe icon/logo files, remove the empty `custom_components/family_hub/readme.md`
-- [ ] Fork identity: `manifest.json` documentation / issue tracker / codeowners and README/HACS links point at `Future-Bridge-AI/HA-Family-Hub`, credit to the upstream author kept; versioning scheme decided
 
 **Dev + Family Preview environments (first thing she sees)**
 - [ ] Dev environment: Docker Compose (or devcontainer) running Home Assistant with this integration mounted from the working copy, plus demo seed data
@@ -86,7 +85,7 @@ the real calendars and lists.
 
 ## Context
 
-- **Brownfield fork.** Upstream is `JVarhol/HA-Family-Hub`; manifest, README badges and HACS links still point there (codeowner `@bordello_labs`). Codebase map in `.planning/codebase/` (mapped 2026-10-26).
+- **Brownfield fork.** Upstream is `JVarhol/HA-Family-Hub`; since Phase 1 the manifest, README, HACS links and docs site point at `Future-Bridge-AI/HA-Family-Hub` (codeowner `@Future-Bridge-AI`), with upstream credit kept. Codebase map in `.planning/codebase/` (mapped 2026-10-26).
 - **Backend:** Python, ~25–29k lines, no dependency manifest (HA provides everything). `__init__.py` is the core monolith (setup, settings sync, calendar/meal logic, reminders, notifications, Grocy client, theme registry, backups, static path + dashboard resource registration around line 12500). Domain engines raise domain errors (`ChoreError`, `RewardError`, `GoalError`, `RoutineError`, `TimerError`, `PantryError`, `UpdateError`) that websocket handlers return via `connection.send_error`.
 - **Frontend:** vanilla JS web components, no bundler, ~66k lines. **Only `card/` and `panel/` are served**; root-level copies are older and edits to them have no runtime effect (the latest upstream upload commit `8f7172d` edited root copies). Cards poll every 60s; card JS is cache-busted by content hash.
 - **Translations:** HA loads only `translations/*.json` (`de`, `en`, `es`, `fr`). `it`, `nl`, `pl`, `pt`, `pt-BR` exist only at the integration root and are not loaded, despite the README advertising them.
@@ -123,7 +122,7 @@ the real calendars and lists.
 | Build on the upstream fork rather than greenfield | Mature, working feature set the family can use immediately | — Pending |
 | Wife is the product owner; her Preview sign-off gates every release to Home | She is the real user; changes must be visible and trusted before reaching the family | — Pending |
 | Three environments: Dev, Family Preview, Home | Experiments never touch the family's real setup | — Pending |
-| Clean foundation first, then Preview, then tests/CI, then feature loop (Phase 3 may overlap Phase 2's tail) | Stale duplicates and translations make edits land in the wrong place; she should see a working app early | — Pending |
+| Clean foundation first, then Preview, then tests/CI, then feature loop (Phase 3 may overlap Phase 2's tail) | Stale duplicates and translations make edits land in the wrong place; she should see a working app early | ✓ Phase 1 done 2026-10-27: one served copy of every file, nine languages in `translations/` |
 | Preview uses scripted seed data with a reset command | Repeatable, resettable, never the real calendars | — Pending |
 | Where Preview runs (always-on home machine via Docker Compose recommended vs laptop) | Must be always-on for her | — Pending (decide in Preview phase) |
 | Separate Preview HA instance if a Home HA already runs | Isolation from real setup | — Pending (decide in Preview phase) |
@@ -150,4 +149,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-10-26 after initialization (from `docs/onboarding-findings.md`)*
+*Last updated: 2026-10-27 after Phase 1*
