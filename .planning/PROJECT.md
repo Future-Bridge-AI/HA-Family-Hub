@@ -93,6 +93,7 @@ the real calendars and lists.
 - **No tests, no code CI.** `PROJECT_CONTEXT.md` describes ~15–20 Python test files, a fake `homeassistant` stub and jsdom JS tests; none are committed. Only the docs-deploy workflow exists.
 - **Known concerns** (see `.planning/codebase/CONCERNS.md`): Grocy API key stored in plain config-entry options and Grocy URLs not forced to HTTPS; self-updater has no checksum/signature check; ~390 `innerHTML` uses with inconsistent escaping; ~145 broad `except Exception`; manifest version 1.168.85 vs changelog stopping at v1.135.4; `CHANGELOG_ARCHIVE.md` referenced but missing.
 - **Runtime requirements:** at least one `calendar.*` entity, `todo.*` entities for recipe box / meal plan / templates / suggestions / reminders (Local To-do works; some auto-created), a `notify.*` target. Most configuration lives in the calendar card's in-card Settings, synced via backend storage. `DOCUMENTATION.md` has card YAML.
+- **Home HA version:** none yet — no Home installation exists; hardware not yet chosen (decide in Phase 2+). The family has not set up Home Assistant; the developer builds in Dev first and installs on Home later. So the first fork release (v2.0.0) will be a fresh install, not an upgrade from upstream 1.168.85. Minimum declared in hacs.json is 2024.12.0; any Home install must meet it (checked 2026-10-27).
 - **Docs to trust:** prefer `README.md` and `DOCUMENTATION.md` for current behaviour; `PROJECT_CONTEXT.md` (~800 KB) for rationale only.
 - **Known feature gaps** (from `DOCUMENTATION.md`): no drag-to-reorder of meals in Month view; Theme Builder panel unfinished and undocumented.
 
@@ -107,7 +108,7 @@ the real calendars and lists.
 ## Constraints
 
 - **License**: GPLv3 — the fork is a derivative work; distribution must stay GPLv3 and keep upstream credit
-- **Platform**: Home Assistant custom integration, HA >= 2024.12.0 (declared in hacs.json; Dev, Preview and tests pinned to 2026.10.4 in versions.env), HACS custom repository — the install path the family setup already depends on
+- **Platform**: Home Assistant custom integration, HA >= 2024.12.0 (declared in hacs.json; Dev, Preview and tests pinned to 2026.10.4 in versions.env), HACS custom repository — the install path planned for Home (no Home install exists yet, so the first fork release v2.0.0 is a fresh install)
 - **Tech stack**: Python on HA Core APIs (no extra Python deps), vanilla JS web components with no bundler — keep the existing build-free delivery
 - **Locality**: everything runs locally; no cloud services — upstream design and family privacy
 - **Safety**: Preview must be isolated from the family's real HA and real calendars — experiments must never break the real setup
@@ -129,7 +130,7 @@ the real calendars and lists.
 | How she reaches Preview (home Wi-Fi only vs Tailscale / Nabu Casa) | Simplicity vs access from anywhere | — Pending (decide in Preview phase) |
 | Fork versioning: continue 1.168.x or start own scheme | Manifest/changelog already disagree upstream | ✓ Decided in Phase 1 (D-19): next version 2.0.0 in manifest.json; git tags are v2.0.0-style vX.Y.Z equal to manifest.json; every release is strictly greater than the previous one (numeric comparison) and no published number is reused; HACS update detection needs a published GitHub Release (Phase 4 REL-01) |
 | Test harness: `pytest-homeassistant-custom-component` preferred over a hand-built stub | Real HA test fixtures | — Pending |
-| Home Assistant versions: pinned 2026.10.4 for Dev, Preview and tests (versions.env); minimum 2024.12.0 in hacs.json | 2024.12.0 is the first release with every API the code imports (StaticPathConfig 2024.7, calendar DATA_COMPONENT 2024.10, no-arg OptionsFlow config_entry 2024.12); a higher floor could block Home from updating | ✓ Decided in Phase 1 (D-20, D-21) |
+| Home Assistant versions: pinned 2026.10.4 for Dev, Preview and tests (versions.env); minimum 2024.12.0 in hacs.json | 2024.12.0 is the first release with every API the code imports (StaticPathConfig 2024.7, calendar DATA_COMPONENT 2024.10, no-arg OptionsFlow config_entry 2024.12); a higher floor could rule out a future Home install on older Home Assistant hardware or images | ✓ Decided in Phase 1 (D-20, D-21) |
 
 ## Evolution
 

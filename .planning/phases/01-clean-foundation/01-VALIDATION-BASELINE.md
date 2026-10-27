@@ -4,7 +4,7 @@
 - **Branch:** `ccr-ab9176f1-jbs2rg`
 - **HEAD when the local run was taken:** `c2571b0`
 - **Workflow:** `.github/workflows/validate.yml` (jobs `hacs` = "HACS validation" and `hassfest` = "hassfest")
-- **Status:** the local result below is a working note (predicted). FOUND-09 is satisfied only by the hosted run recorded under "Hosted run (authoritative)".
+- **Status:** the local result below is a working note (predicted). FOUND-09 is satisfied by the executed hosted run recorded under "Hosted run (authoritative)" (run 40422777272, both jobs executed, both concluded failure as expected).
 
 Nothing in this file is fixed in Phase 1. Every failure is copied as the validator printed it. Fixing is Phase 3 (CI-03).
 
@@ -81,11 +81,92 @@ The HACS messages above are the wording predicted from the validator source; the
 
 ## Hosted run (authoritative)
 
-HOSTED-RUN-PENDING: filled by plan 01-05 Task 3 after the developer enables Actions and Validate runs once.
+Run: https://github.com/Future-Bridge-AI/HA-Family-Hub/actions/runs/40422777272
+
+- **Workflow:** Validate (run number 8), event `push`, branch `ccr-ab9176f1-jbs2rg`
+- **Date:** 2026-10-26 (created 23:53:19Z; hassfest finished 23:53:45Z, HACS finished 23:54:03Z)
+- **Head commit:** `bd8de7a6cfed4b39c7e781e5d23a832103a7d2bf` (`docs(01-05): record predicted validation baseline`, an ancestor of this branch's HEAD)
+- **Run conclusion:** failure (expected: the failures below are the baseline)
+- **Source of every line below:** the public GitHub API, read without authentication on 2026-10-27: the run, its jobs and steps, the check-run annotations, and the job logs (the log endpoint answered HTTP 200 after redirect without credentials). The developer pasted no log lines. Only validator output lines and check names are copied here, never full logs.
+
+Job hacs (HACS validation): failure
+Job hassfest (hassfest): failure
+
+Both validator steps executed: `Run hacs/action@main` finished with conclusion failure, and `Run home-assistant/actions/hassfest@master` finished with conclusion failure. Neither job was cancelled or skipped.
+
+### hassfest (job 121921017600)
+
+Header printed by the job: `Integrations: 1`, `Invalid integrations: 1`; step exit code 1. Verbatim validator lines:
+
+```
+* [ERROR] [MANIFEST] Manifest keys are not sorted correctly: domain, name, then alphabetical order
+* [ERROR] [TRANSLATIONS] Invalid translations/en.json: not a valid option at 'fh_ui'. Got {'nav': {'legend_events': 'Events', 'legend_reminders': 'Reminders', 'meal_block_breakfast': 'Breakfast', 'meal_block_lunch': 'Lunch', 'meal_block_dinner': 'Dinner', 'tap_to_add_block': 'Tap to add %block%', 'settings': 'Settings', 'week': 'Week', 'week_view_title': 'Week view', 'month': 'Month', 'month_view_title': 'Month view', 'day': 'Day', 'switch_view_title': 'Switch view', 'label_today': 'Today', 'label_tomorrow': 'Tomorrow', 'label_yesterday': 'Yesterday', 'edit_meals_title': 'Rearrang...
+the string should not contain URLs, please use description placeholders instead at 'config.step.grocy.data.grocy_url'. Got 'Grocy URL (e.g. http://homeassistant.local:9192)'
+the string should not contain URLs, please use description placeholders instead at 'options.step.grocy.data.grocy_url'. Got 'Grocy URL (e.g. http://homeassistant.local:9192)'
+* [WARNING] [CONFIG_SCHEMA] Integrations which implement 'async_setup' or 'setup' must define either 'CONFIG_SCHEMA', 'PLATFORM_SCHEMA' or 'PLATFORM_SCHEMA_BASE'. If the integration has no configuration parameters, can only be set up from platforms or can only be set up from config entries, one of the helpers cv.empty_config_schema, cv.platform_only_config_schema or cv.config_entry_only_config_schema can be used.
+```
+
+(The `fh_ui` dump is truncated after about 200 characters here and is cut at a similar point by the API annotation; the two URL lines belong to the second error, as in the local run.)
+
+| ID | Check | Severity | Message | Status |
+|----|-------|----------|---------|--------|
+| HF-01 | MANIFEST | ERROR | Manifest keys are not sorted correctly: domain, name, then alphabetical order | same as predicted |
+| HF-02 | TRANSLATIONS | ERROR | Invalid translations/en.json: not a valid option at 'fh_ui' | same as predicted |
+| HF-03 | TRANSLATIONS | ERROR | the string should not contain URLs, please use description placeholders instead at 'config.step.grocy.data.grocy_url' | same as predicted |
+| HF-04 | TRANSLATIONS | ERROR | the string should not contain URLs, please use description placeholders instead at 'options.step.grocy.data.grocy_url' | same as predicted |
+| HF-W01 | CONFIG_SCHEMA | WARNING | Integrations which implement 'async_setup' or 'setup' must define either 'CONFIG_SCHEMA', 'PLATFORM_SCHEMA' or 'PLATFORM_SCHEMA_BASE' | same as predicted |
+
+No further hassfest error or warning line was printed, so there is no hosted-only hassfest ID. No `strings.json` error appears.
+
+### HACS (job 121921017510)
+
+Header printed by the job: `Category: integration`, `Repository: Future-Bridge-AI/HA-Family-Hub@refs/heads/ccr-ab9176f1-jbs2rg`; final line `3/10 checks failed`. Verbatim validator lines:
+
+```
+ <Validation license> failed:  The repository license could not be identified (SPDX: NOASSERTION) (More info: https://hacs.xyz/docs/publish/include#check-license )
+ <Integration Future-Bridge-AI/HA-Family-Hub> The integration manifest has no categories, see https://contributors.home-assistant.io/core/integrations/categories/
+ <Validation issues> failed:  The repository does not have issues enabled (More info: https://hacs.xyz/docs/publish/include#check-repository )
+ <Validation topics> failed:  The repository has no valid topics (More info: https://hacs.xyz/docs/publish/include#check-repository )
+ <Integration Future-Bridge-AI/HA-Family-Hub> 3/10 checks failed
+```
+
+Validators that completed without a failure: integration_categories (with the warning above), information, description, brands, integration_manifest, archived, hacsjson.
+
+| ID | Rule | Severity | Message | Status |
+|----|------|----------|---------|--------|
+| HACS-01 | issues | FAIL | The repository does not have issues enabled | same as predicted |
+| HACS-02 | topics | FAIL | The repository has no valid topics | same as predicted (wording differs from the prediction) |
+| HACS-03 | license | FAIL | The repository license could not be identified (SPDX: NOASSERTION) | same as predicted |
+| HACS-W01 | integration_categories | WARNING | The integration manifest has no categories | same as predicted (wording differs from the prediction) |
+
+No further HACS failure was reported, so there is no hosted-only HACS ID.
+
+### Runner notices (not validator findings)
+
+The API also lists two GitHub runner annotations. They are recorded for the Phase 3 action-pinning work (CI-03/CI-04) and carry no failure ID:
+
+- hassfest job, warning: `Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4.`
+- both jobs, notice: `The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026.`
 
 ## Differences (local vs hosted)
 
-HOSTED-RUN-PENDING
+The hosted run (authoritative) and the local run (predicted) are kept in separate sections above. This table pairs them per ID.
+
+| ID | Local (predicted) | Hosted (authoritative) | Difference |
+|----|-------------------|------------------------|------------|
+| HF-01 | error | error | same |
+| HF-02 | error | error | same |
+| HF-03 | error | error | same |
+| HF-04 | error | error | same |
+| HF-W01 | warning | warning | same |
+| HACS-01 | fail | fail | same |
+| HACS-02 | fail | fail | same (hosted wording: "The repository has no valid topics") |
+| HACS-03 | fail | fail | same |
+| HACS-W01 | warning | warning | same (hosted wording: "The integration manifest has no categories") |
+| images rule | pass (predicted from README `<img` count) | not executed | predicted only: the hosted integration run lists ten validators and `images` is not one of them. It is not a failure either way |
+| hosted-only IDs | none | none | 0 hosted-only failures |
+
+Result: every predicted failure was reproduced by the hosted run and nothing new appeared. The unpinned hosted hassfest image added no check beyond HA 2026.10.4 on this date; this can still change, because the image is not pinned (see Out of scope notes).
 
 ## Manual repo-settings steps (D-23)
 
@@ -95,7 +176,7 @@ HOSTED-RUN-PENDING
 4. Confirm the repository description.
 5. Settings, Pages, Source = GitHub Actions, so `deploy-docs.yml` can publish https://future-bridge-ai.github.io/HA-Family-Hub/.
 6. Phase 3 decision: restore the canonical GPLv3 text in `LICENSE` and move the notice to README or a `NOTICE` file, so HACS-03 passes. This touches the license file, so it is the developer's call.
-7. Check the Home Assistant version on Home (Settings, About) and confirm it is at least 2024.12.0 (the minimum declared in `hacs.json`).
+7. Home Assistant version on Home: there is no Home installation yet (the family has not set up Home Assistant; hardware is not chosen). Nothing to check now. When Home is installed (Phase 2 or later), install a Home Assistant release of at least 2024.12.0 (the minimum declared in `hacs.json`); the pinned Dev/Preview version is 2026.10.4.
 
 ## Out of scope notes
 
