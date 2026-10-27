@@ -3,15 +3,15 @@ status: testing
 phase: 01-clean-foundation
 source: [01-VERIFICATION.md]
 started: 2026-10-27T07:43:01Z
-updated: 2026-10-27T08:11:06Z
+updated: 2026-10-27T08:14:02Z
 ---
 
 ## Current Test
 
-number: 10
-name: Resolve prohibition FOUND-02 / FOUND-03 (test tier): MUST NOT alter any translation string or key while moving or deleting files, and MUST NOT port the 9 orphan keys
+number: 11
+name: Resolve prohibition FOUND-09 (judgment tier): MUST NOT soften, reword away or omit any validation failure
 expected: |
-  Accept: move commit 3c9a703 is 5 exact renames (0 insertions, 0 deletions); de/en/es/fr in translations/ unchanged vs bc7e90c; all 9 languages have 2,139 keys with symmetric difference 0; the 9 orphan leaf names match 0 files under custom_components/
+  Non-authoritative verifier judgment: holds. The hosted section's failure lines match the live check-run annotations line for line (MANIFEST, fh_ui, two grocy_url URL lines, CONFIG_SCHEMA warning; HACS license, issues, topics, categories warning, '3/10 checks failed'). Issues, topics and LICENSE were not changed before the run
 awaiting: user response
 
 ## Tests
@@ -54,7 +54,7 @@ result: pass
 
 ### 10. Resolve prohibition FOUND-02 / FOUND-03 (test tier): MUST NOT alter any translation string or key while moving or deleting files, and MUST NOT port the 9 orphan keys
 expected: Accept: move commit 3c9a703 is 5 exact renames (0 insertions, 0 deletions); de/en/es/fr in translations/ unchanged vs bc7e90c; all 9 languages have 2,139 keys with symmetric difference 0; the 9 orphan leaf names match 0 files under custom_components/
-result: [pending]
+result: pass
 
 ### 11. Resolve prohibition FOUND-09 (judgment tier): MUST NOT soften, reword away or omit any validation failure
 expected: Non-authoritative verifier judgment: holds. The hosted section's failure lines match the live check-run annotations line for line (MANIFEST, fh_ui, two grocy_url URL lines, CONFIG_SCHEMA warning; HACS license, issues, topics, categories warning, '3/10 checks failed'). Issues, topics and LICENSE were not changed before the run
@@ -63,9 +63,9 @@ result: [pending]
 ## Summary
 
 total: 11
-passed: 9
+passed: 10
 issues: 0
-pending: 2
+pending: 1
 skipped: 0
 blocked: 0
 
