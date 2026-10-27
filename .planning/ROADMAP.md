@@ -38,7 +38,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. `manifest.json` links, codeowners, README badges, HACS links and the docs site all point at `Future-Bridge-AI/HA-Family-Hub`, with upstream credit and GPLv3 intact. `manifest.json` carries the next fork version under the recorded version scheme. `domain`, service names, websocket prefixes and card tags are unchanged.
   5. One pinned HA version is recorded for Dev, Preview and tests. The minimum HA version in `hacs.json` matches what the code actually needs. The failure list from the first hassfest and HACS validation run is written down for the Safety Net phase.
 
-**Plans:** 6/7 plans executed
+**Plans:** 7/7 plans executed
 
 Plans:
 **Wave 1**
@@ -54,7 +54,7 @@ Plans:
 - [x] 01-07-PLAN.md — Delete the truncated root translations and strings.json, then the .bak_divfix backup (wave 3)
 
 **Wave 4** *(blocked on Wave 3 completion)*
-- [ ] 01-05-PLAN.md — Validation baseline: local hassfest, HACS prediction, Phase 1 sweep, the developer's hosted run recorded (wave 4, runs last, has checkpoint)
+- [x] 01-05-PLAN.md — Validation baseline: local hassfest, HACS prediction, Phase 1 sweep, the developer's hosted run recorded (wave 4, runs last, has checkpoint)
 
 **UI hint**: no
 **Research:** Not needed. The hassfest/HACS validation spike inside this phase is the research.
@@ -141,7 +141,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4. Phase 3 depends only on Ph
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Clean Foundation | 6/7 | In Progress | - |
+| 1. Clean Foundation | 7/7 | In Progress | - |
 | 2. Dev + Family Preview | 0/TBD | Not started | - |
 | 3. Safety Net | 0/TBD | Not started | - |
 | 4. Family-Led Customisation Loop | 0/TBD | Not started | - |

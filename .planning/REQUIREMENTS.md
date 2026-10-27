@@ -20,7 +20,7 @@ Requirements for milestone 1. Each maps to one roadmap phase.
 - [x] **FOUND-06**: The fork has its own identity — `manifest.json` documentation, issue tracker and codeowners, README badges/links, HACS links and the docs site config point at `Future-Bridge-AI/HA-Family-Hub`, with upstream credit and GPLv3 kept; `domain`, service names, websocket prefixes and card tags are unchanged
 - [x] **FOUND-07**: Fork versioning scheme is decided and recorded (continue strictly above 1.168.85, e.g. 1.169.0) and the next version is set in `manifest.json`
 - [x] **FOUND-08**: The declared minimum HA version in `hacs.json` matches what the code actually needs and what is tested, and a single pinned HA version is recorded for Dev, Preview and tests
-- [ ] **FOUND-09**: The first hassfest and HACS validation failures are known — validation has been run once and the failure list recorded for the safety-net work
+- [x] **FOUND-09**: The first hassfest and HACS validation failures are known — validation has been run once and the failure list recorded for the safety-net work
 
 ### Dev environment
 
@@ -131,7 +131,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FOUND-06 | Phase 1 | Complete |
 | FOUND-07 | Phase 1 | Complete |
 | FOUND-08 | Phase 1 | Complete |
-| FOUND-09 | Phase 1 | Pending |
+| FOUND-09 | Phase 1 | Complete |
 | DEV-01 | Phase 2 | Pending |
 | DEV-02 | Phase 2 | Pending |
 | DEV-03 | Phase 2 | Pending |
