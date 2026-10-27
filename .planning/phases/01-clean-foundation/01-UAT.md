@@ -3,15 +3,15 @@ status: testing
 phase: 01-clean-foundation
 source: [01-VERIFICATION.md]
 started: 2026-10-27T07:43:01Z
-updated: 2026-10-27T08:10:36Z
+updated: 2026-10-27T08:11:06Z
 ---
 
 ## Current Test
 
-number: 9
-name: Resolve prohibition FOUND-07 (test tier): MUST NOT set a manifest version <= 1.168.85 or reuse a published number
+number: 10
+name: Resolve prohibition FOUND-02 / FOUND-03 (test tier): MUST NOT alter any translation string or key while moving or deleting files, and MUST NOT port the 9 orphan keys
 expected: |
-  Accept: manifest version 2.0.0 compares greater than (1,168,85) numerically; 2.0.0 has never been published by the fork
+  Accept: move commit 3c9a703 is 5 exact renames (0 insertions, 0 deletions); de/en/es/fr in translations/ unchanged vs bc7e90c; all 9 languages have 2,139 keys with symmetric difference 0; the 9 orphan leaf names match 0 files under custom_components/
 awaiting: user response
 
 ## Tests
@@ -50,7 +50,7 @@ result: pass
 
 ### 9. Resolve prohibition FOUND-07 (test tier): MUST NOT set a manifest version <= 1.168.85 or reuse a published number
 expected: Accept: manifest version 2.0.0 compares greater than (1,168,85) numerically; 2.0.0 has never been published by the fork
-result: [pending]
+result: pass
 
 ### 10. Resolve prohibition FOUND-02 / FOUND-03 (test tier): MUST NOT alter any translation string or key while moving or deleting files, and MUST NOT port the 9 orphan keys
 expected: Accept: move commit 3c9a703 is 5 exact renames (0 insertions, 0 deletions); de/en/es/fr in translations/ unchanged vs bc7e90c; all 9 languages have 2,139 keys with symmetric difference 0; the 9 orphan leaf names match 0 files under custom_components/
@@ -63,9 +63,9 @@ result: [pending]
 ## Summary
 
 total: 11
-passed: 8
+passed: 9
 issues: 0
-pending: 3
+pending: 2
 skipped: 0
 blocked: 0
 
