@@ -3,22 +3,22 @@ status: testing
 phase: 01-clean-foundation
 source: [01-VERIFICATION.md]
 started: 2026-10-27T07:43:01Z
-updated: 2026-10-27T07:43:01Z
+updated: 2026-10-27T07:56:37Z
 ---
 
 ## Current Test
 
-number: 1
-name: Confirm the FOUND-07 ordering rule (01-04 truth tagged verification: backstop): every future release version is strictly greater than the previous one and no published number is reused
+number: 2
+name: Resolve prohibition FOUND-04 (test tier): MUST NOT commit HA runtime state, integration backups or env files
 expected: |
-  PROJECT.md 'Fork versioning' row states the rule (verifier observed the text); you accept that enforcement is deferred to the Phase 4 REL-01 tag check
+  Accept the verifier evidence: 0 tracked .storage/, family_hub_backups/ or .env paths; git check-ignore confirms all three are ignored
 awaiting: user response
 
 ## Tests
 
 ### 1. Confirm the FOUND-07 ordering rule (01-04 truth tagged verification: backstop): every future release version is strictly greater than the previous one and no published number is reused
 expected: PROJECT.md 'Fork versioning' row states the rule (verifier observed the text); you accept that enforcement is deferred to the Phase 4 REL-01 tag check
-result: [pending]
+result: pass
 
 ### 2. Resolve prohibition FOUND-04 (test tier): MUST NOT commit HA runtime state, integration backups or env files
 expected: Accept the verifier evidence: 0 tracked .storage/, family_hub_backups/ or .env paths; git check-ignore confirms all three are ignored
@@ -63,9 +63,9 @@ result: [pending]
 ## Summary
 
 total: 11
-passed: 0
+passed: 1
 issues: 0
-pending: 11
+pending: 10
 skipped: 0
 blocked: 0
 
