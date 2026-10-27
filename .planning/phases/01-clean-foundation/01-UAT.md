@@ -3,15 +3,15 @@ status: testing
 phase: 01-clean-foundation
 source: [01-VERIFICATION.md]
 started: 2026-10-27T07:43:01Z
-updated: 2026-10-27T08:02:51Z
+updated: 2026-10-27T08:07:49Z
 ---
 
 ## Current Test
 
-number: 4
-name: Resolve prohibition FOUND-01 (test tier): MUST NOT change served card/panel JS except via a ported-hunk port commit
+number: 5
+name: Resolve prohibition FOUND-06 values (test tier): MUST NOT remove the Bordello Labs notice, edit LICENSE, or present the fork as original work
 expected: |
-  Accept: 01-TRIAGE.md has 14 discarded rows and 'Ported hunks: none'; served card/*.js and panel/*.js are byte-identical to bc7e90c; no Python or services.yaml change
+  Accept: LICENSE unchanged vs bc7e90c; README line 153 credit 'Based on [JVarhol/HA-Family-Hub]... licensed GPLv3.'; site footer keeps 'Bordello Labs' plus the upstream credit
 awaiting: user response
 
 ## Tests
@@ -30,7 +30,7 @@ result: pass
 
 ### 4. Resolve prohibition FOUND-01 (test tier): MUST NOT change served card/panel JS except via a ported-hunk port commit
 expected: Accept: 01-TRIAGE.md has 14 discarded rows and 'Ported hunks: none'; served card/*.js and panel/*.js are byte-identical to bc7e90c; no Python or services.yaml change
-result: [pending]
+result: pass
 
 ### 5. Resolve prohibition FOUND-06 values (test tier): MUST NOT remove the Bordello Labs notice, edit LICENSE, or present the fork as original work
 expected: Accept: LICENSE unchanged vs bc7e90c; README line 153 credit 'Based on [JVarhol/HA-Family-Hub]... licensed GPLv3.'; site footer keeps 'Bordello Labs' plus the upstream credit
@@ -63,9 +63,9 @@ result: [pending]
 ## Summary
 
 total: 11
-passed: 3
+passed: 4
 issues: 0
-pending: 8
+pending: 7
 skipped: 0
 blocked: 0
 
