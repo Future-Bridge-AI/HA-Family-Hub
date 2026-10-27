@@ -3,15 +3,15 @@ status: testing
 phase: 01-clean-foundation
 source: [01-VERIFICATION.md]
 started: 2026-10-27T07:43:01Z
-updated: 2026-10-27T08:10:06Z
+updated: 2026-10-27T08:10:36Z
 ---
 
 ## Current Test
 
-number: 8
-name: Resolve prohibition FOUND-08 (test tier): MUST NOT set hacs.json minimum above what the code needs
+number: 9
+name: Resolve prohibition FOUND-07 (test tier): MUST NOT set a manifest version <= 1.168.85 or reuse a published number
 expected: |
-  Accept: hacs.json homeassistant is 2024.12.0 (not 2026.10.4); config_flow.py builds FamilyHubOptionsFlow() with no argument, which needs the 2024.12 OptionsFlow.config_entry property
+  Accept: manifest version 2.0.0 compares greater than (1,168,85) numerically; 2.0.0 has never been published by the fork
 awaiting: user response
 
 ## Tests
@@ -46,7 +46,7 @@ result: pass
 
 ### 8. Resolve prohibition FOUND-08 (test tier): MUST NOT set hacs.json minimum above what the code needs
 expected: Accept: hacs.json homeassistant is 2024.12.0 (not 2026.10.4); config_flow.py builds FamilyHubOptionsFlow() with no argument, which needs the 2024.12 OptionsFlow.config_entry property
-result: [pending]
+result: pass
 
 ### 9. Resolve prohibition FOUND-07 (test tier): MUST NOT set a manifest version <= 1.168.85 or reuse a published number
 expected: Accept: manifest version 2.0.0 compares greater than (1,168,85) numerically; 2.0.0 has never been published by the fork
@@ -63,9 +63,9 @@ result: [pending]
 ## Summary
 
 total: 11
-passed: 7
+passed: 8
 issues: 0
-pending: 4
+pending: 3
 skipped: 0
 blocked: 0
 
