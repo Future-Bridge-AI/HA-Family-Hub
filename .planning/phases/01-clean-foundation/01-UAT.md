@@ -3,15 +3,15 @@ status: testing
 phase: 01-clean-foundation
 source: [01-VERIFICATION.md]
 started: 2026-10-27T07:43:01Z
-updated: 2026-10-27T08:09:33Z
+updated: 2026-10-27T08:10:06Z
 ---
 
 ## Current Test
 
-number: 7
-name: Resolve prohibition FOUND-09 transparency (test tier): workflow carries no error suppression
+number: 8
+name: Resolve prohibition FOUND-08 (test tier): MUST NOT set hacs.json minimum above what the code needs
 expected: |
-  Accept: validate.yml has no continue-on-error or '|| true'; hosted run 40422777272 shows both jobs red
+  Accept: hacs.json homeassistant is 2024.12.0 (not 2026.10.4); config_flow.py builds FamilyHubOptionsFlow() with no argument, which needs the 2024.12 OptionsFlow.config_entry property
 awaiting: user response
 
 ## Tests
@@ -42,7 +42,7 @@ result: pass
 
 ### 7. Resolve prohibition FOUND-09 transparency (test tier): workflow carries no error suppression
 expected: Accept: validate.yml has no continue-on-error or '|| true'; hosted run 40422777272 shows both jobs red
-result: [pending]
+result: pass
 
 ### 8. Resolve prohibition FOUND-08 (test tier): MUST NOT set hacs.json minimum above what the code needs
 expected: Accept: hacs.json homeassistant is 2024.12.0 (not 2026.10.4); config_flow.py builds FamilyHubOptionsFlow() with no argument, which needs the 2024.12 OptionsFlow.config_entry property
@@ -63,9 +63,9 @@ result: [pending]
 ## Summary
 
 total: 11
-passed: 6
+passed: 7
 issues: 0
-pending: 5
+pending: 4
 skipped: 0
 blocked: 0
 
