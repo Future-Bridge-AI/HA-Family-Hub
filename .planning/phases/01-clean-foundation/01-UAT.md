@@ -3,15 +3,15 @@ status: testing
 phase: 01-clean-foundation
 source: [01-VERIFICATION.md]
 started: 2026-10-27T07:43:01Z
-updated: 2026-10-27T08:00:17Z
+updated: 2026-10-27T08:02:51Z
 ---
 
 ## Current Test
 
-number: 3
-name: Resolve prohibition FOUND-05 (test tier): MUST NOT delete served brand art or make any runtime change
+number: 4
+name: Resolve prohibition FOUND-01 (test tier): MUST NOT change served card/panel JS except via a ported-hunk port commit
 expected: |
-  Accept: icon.png and brand/* tracked and unchanged; git diff bc7e90c..HEAD on card/, panel/, *.py, services.yaml, de/en/es/fr translations, icon, brand shows only the .bak_divfix deletion
+  Accept: 01-TRIAGE.md has 14 discarded rows and 'Ported hunks: none'; served card/*.js and panel/*.js are byte-identical to bc7e90c; no Python or services.yaml change
 awaiting: user response
 
 ## Tests
@@ -26,7 +26,7 @@ result: pass
 
 ### 3. Resolve prohibition FOUND-05 (test tier): MUST NOT delete served brand art or make any runtime change
 expected: Accept: icon.png and brand/* tracked and unchanged; git diff bc7e90c..HEAD on card/, panel/, *.py, services.yaml, de/en/es/fr translations, icon, brand shows only the .bak_divfix deletion
-result: [pending]
+result: pass
 
 ### 4. Resolve prohibition FOUND-01 (test tier): MUST NOT change served card/panel JS except via a ported-hunk port commit
 expected: Accept: 01-TRIAGE.md has 14 discarded rows and 'Ported hunks: none'; served card/*.js and panel/*.js are byte-identical to bc7e90c; no Python or services.yaml change
@@ -63,9 +63,9 @@ result: [pending]
 ## Summary
 
 total: 11
-passed: 2
+passed: 3
 issues: 0
-pending: 9
+pending: 8
 skipped: 0
 blocked: 0
 
