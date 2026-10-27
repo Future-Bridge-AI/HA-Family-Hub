@@ -1,0 +1,19 @@
+{
+  "phase": "2",
+  "phase_name": "Dev + Family Preview",
+  "timestamp": "2026-10-27T00:00:00Z",
+  "areas_completed": ["Preview host & address"],
+  "areas_remaining": ["Pretend family & seed week", "Her way in & what she sees", "Change hand-off & guide"],
+  "decisions": {
+    "Preview host & address": [
+      {"question": "Which machine runs Preview? (asked whether cloud is suitable)", "answer": "Local machine already owned: the developer's Dev laptop for now; may port to other hardware later. Cloud explained (Preview workable with Tailscale + exception; Home not advised) and declined.", "options_presented": ["New mini PC", "Existing home server/NAS", "Raspberry Pi", "Not decided yet", "Cloud VPS + Tailscale", "Cloud VPS public HTTPS"]},
+      {"question": "Always-on vs laptop uptime", "answer": "Accept for now: Preview is available whenever the laptop is on at home; try-outs at agreed times; always-on returns after moving to a dedicated box. Reword success criterion 1.", "options_presented": ["Accept for now", "Keep laptop always on", "Buy a box before executing"]},
+      {"question": "Stable address", "answer": "Router DHCP IP reservation for the laptop; Preview at <ip>:8124.", "options_presented": ["Router IP reservation", "Hostname .local", "You decide"]},
+      {"question": "Portability", "answer": "Fresh seed on new host: copy repo + one env file, run reset-preview; host-agnostic tooling (any Linux/macOS with Docker Compose v2), no laptop-specific paths.", "options_presented": ["Fresh seed on new host", "Move the volume too"]},
+      {"question": "Home hardware", "answer": "Not sure yet: record only the isolation rule (Home never shares box/volume/identity with Preview/Dev); where Home runs decided in Phase 4.", "options_presented": ["Yes, own local device", "Not sure yet"]},
+      {"question": "HTTP vs HTTPS", "answer": "HTTPS from day one (self-signed or local CA; each phone trusts it once).", "options_presented": ["HTTP, research first", "HTTPS from day one"]}
+    ]
+  },
+  "deferred_ideas": [],
+  "canonical_refs": [".planning/ROADMAP.md", ".planning/REQUIREMENTS.md", ".planning/PROJECT.md", ".planning/research/SUMMARY.md", "versions.env"]
+}
