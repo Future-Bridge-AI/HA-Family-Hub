@@ -3,15 +3,15 @@ status: testing
 phase: 01-clean-foundation
 source: [01-VERIFICATION.md]
 started: 2026-10-27T07:43:01Z
-updated: 2026-10-27T08:09:04Z
+updated: 2026-10-27T08:09:33Z
 ---
 
 ## Current Test
 
-number: 6
-name: Resolve prohibition FOUND-06 safety (test tier): MUST NOT change domain, name, service names, websocket prefixes, card tags, storage keys or static URL paths
+number: 7
+name: Resolve prohibition FOUND-09 transparency (test tier): workflow carries no error suppression
 expected: |
-  Accept: manifest domain family_hub / name Family Hub; all *.py (incl. const.py), services.yaml and served JS unchanged vs bc7e90c
+  Accept: validate.yml has no continue-on-error or '|| true'; hosted run 40422777272 shows both jobs red
 awaiting: user response
 
 ## Tests
@@ -38,7 +38,7 @@ result: pass
 
 ### 6. Resolve prohibition FOUND-06 safety (test tier): MUST NOT change domain, name, service names, websocket prefixes, card tags, storage keys or static URL paths
 expected: Accept: manifest domain family_hub / name Family Hub; all *.py (incl. const.py), services.yaml and served JS unchanged vs bc7e90c
-result: [pending]
+result: pass
 
 ### 7. Resolve prohibition FOUND-09 transparency (test tier): workflow carries no error suppression
 expected: Accept: validate.yml has no continue-on-error or '|| true'; hosted run 40422777272 shows both jobs red
@@ -63,9 +63,9 @@ result: [pending]
 ## Summary
 
 total: 11
-passed: 5
+passed: 6
 issues: 0
-pending: 6
+pending: 5
 skipped: 0
 blocked: 0
 
