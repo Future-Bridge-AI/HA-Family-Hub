@@ -3,15 +3,15 @@ status: testing
 phase: 01-clean-foundation
 source: [01-VERIFICATION.md]
 started: 2026-10-27T07:43:01Z
-updated: 2026-10-27T08:07:49Z
+updated: 2026-10-27T08:09:04Z
 ---
 
 ## Current Test
 
-number: 5
-name: Resolve prohibition FOUND-06 values (test tier): MUST NOT remove the Bordello Labs notice, edit LICENSE, or present the fork as original work
+number: 6
+name: Resolve prohibition FOUND-06 safety (test tier): MUST NOT change domain, name, service names, websocket prefixes, card tags, storage keys or static URL paths
 expected: |
-  Accept: LICENSE unchanged vs bc7e90c; README line 153 credit 'Based on [JVarhol/HA-Family-Hub]... licensed GPLv3.'; site footer keeps 'Bordello Labs' plus the upstream credit
+  Accept: manifest domain family_hub / name Family Hub; all *.py (incl. const.py), services.yaml and served JS unchanged vs bc7e90c
 awaiting: user response
 
 ## Tests
@@ -34,7 +34,7 @@ result: pass
 
 ### 5. Resolve prohibition FOUND-06 values (test tier): MUST NOT remove the Bordello Labs notice, edit LICENSE, or present the fork as original work
 expected: Accept: LICENSE unchanged vs bc7e90c; README line 153 credit 'Based on [JVarhol/HA-Family-Hub]... licensed GPLv3.'; site footer keeps 'Bordello Labs' plus the upstream credit
-result: [pending]
+result: pass
 
 ### 6. Resolve prohibition FOUND-06 safety (test tier): MUST NOT change domain, name, service names, websocket prefixes, card tags, storage keys or static URL paths
 expected: Accept: manifest domain family_hub / name Family Hub; all *.py (incl. const.py), services.yaml and served JS unchanged vs bc7e90c
@@ -63,9 +63,9 @@ result: [pending]
 ## Summary
 
 total: 11
-passed: 4
+passed: 5
 issues: 0
-pending: 7
+pending: 6
 skipped: 0
 blocked: 0
 
