@@ -11,7 +11,7 @@ Family Hub isn't in the default HACS store yet, so add it as a custom repository
 
 1. In Home Assistant, go to HACS → the ⋮ menu (top right) → **Custom repositories**, and add this repository's URL with category **Integration**. Or use this one-click link:
 
-   [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=JVarhol&repository=HA-Family-Hub&category=integration)
+   [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Future-Bridge-AI&repository=HA-Family-Hub&category=integration)
 
 2. Find **Family Hub** in HACS and click **Download**.
 3. Restart Home Assistant.
