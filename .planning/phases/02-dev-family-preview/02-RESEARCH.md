@@ -1,13 +1,17 @@
 # Phase 2: Dev + Family Preview - Research
 
-**Researched:** 2026-10-28
-**Domain:** Docker Compose HA environments (Dev + Preview) for a Home Assistant custom integration, API-driven seeding through public HA APIs, deploy/reset tooling, Google Calendar (read/write) in a non-production instance, local-CA HTTPS for an Android Companion client
-**Confidence:** MEDIUM-HIGH. Backend, seeding, dashboard, sidebar, HTTP/TLS and Google-entry mechanics are HIGH: they were executed against a real Home Assistant Core 2026.10.4 started from `pip` (no Docker) in this session. Docker-on-laptop, Android Companion trust of a user CA, and Google OAuth behaviour are MEDIUM/LOW (documentation and issue-tracker evidence; no phone, no Docker daemon, no Google account in this sandbox).
+**Researched:** 2026-11-02 (refresh of the 2026-10-28 research, after CONTEXT.md D-23..D-31 were added)
+**Domain:** Docker Compose HA environments (Dev + Preview) on a Windows 11 laptop via WSL2 + Docker Engine, API-driven seeding through public HA APIs, deploy/reset/refresh tooling, Google Calendar (read/write) in a non-production instance, local-CA HTTPS for an Android Companion client
+**Confidence:** MEDIUM-HIGH. HA-side mechanics (onboarding, users, config flow, dashboard, sidebar, HTTP promote, Google entry preservation, resource update) are HIGH: executed against a real HA Core 2026.10.4 on 2026-10-28 and spot re-run in this session. The Windows/WSL2 host layer, Android CA trust and real Google token behaviour are MEDIUM/LOW: documentation and issue-tracker evidence only, no Windows machine, phone or Google account in this sandbox.
 
 <user_constraints>
 ## User Constraints (from CONTEXT.md)
 
 ### Locked Decisions
+
+**Scope changes agreed in discuss-phase (the planner must reflect them; see D-03, D-07):**
+- Preview runs on the developer's laptop for now, so "always-on" becomes "available whenever the laptop is on at home".
+- Dev and Preview **connect read/write to a chosen list of the family's real Google calendars**. This overrides the earlier rule "Preview never connects to the real family calendars" (PREV-03's calendar clause, the PROJECT.md/REQUIREMENTS.md out-of-scope row "Real family calendars or data in Preview", and ROADMAP Phase 2 success criterion 2's "or touches the real family calendars"). The notification/speaker isolation half of PREV-03 is unchanged.
 
 #### Preview host and address
 - **D-01:** Preview runs on the **developer's Dev laptop** (local, not cloud), as its own HA container, volume and port (8124), separate from Dev (8130). A cloud host was explained and declined. — **Reversibility:** reversible — tooling is host-agnostic (D-04).
@@ -40,9 +44,20 @@
 - **D-21:** The Getting started guide is **Markdown in `docs/family/`** with Preview screenshots, readable on GitHub from her phone and printable or saveable as PDF. It is not published to the docs site in this phase. It includes the Android steps: install Companion, trust the certificate, add the Preview server, sign in.
 - **D-22:** The first end-to-end change (ACCESS-05) is **a tiny wording or title change she picks**, recorded in her words.
 
+#### Answers to the research open questions (02-RESEARCH.md §Open Questions, answered 2026-11-02)
+- **D-23:** The laptop runs **Windows**. Dev and Preview run in **WSL2 (Ubuntu) with Docker Engine installed inside WSL2**, not Docker Desktop (HA does not support Desktop). Her phone reaches Preview through **WSL mirrored networking** (Windows 11 22H2+), with a Windows Firewall rule for 8124. This refines D-04: tooling stays Linux-shell and host-agnostic; Windows/WSL2 is the primary host. Research did not test Windows/WSL2: the planner adds `scripts/doctor` checks (WSL version, mirrored mode, Engine not Desktop, clock) and a human-verify checkpoint on the laptop. `restart: unless-stopped` only helps once WSL and Docker are running, so start-on-login for WSL/Docker must be covered.
+- **D-24:** The laptop is on **Wi-Fi**. The guide/doctor tells the developer to turn off Windows "random hardware addresses" for the home network so the D-05 router reservation holds.
+- **D-25:** Seeded `[PREVIEW]`/`[DEV]` events go onto the **real family calendars** (as D-11), and the developer **accepts that family phones may buzz** from Google default reminders. No dedicated seed calendar.
+- **D-26:** The **developer's own Google account** owns the Google Cloud project and OAuth client, and the OAuth app is **published** (avoids the 7-day refresh-token expiry that would break D-10).
+- **D-27:** Having to **sign in again on Preview after each `reset-preview`** is acceptable. The guide documents the re-login; test on her phone what exactly happens (re-login vs re-adding the server).
+- **D-28:** `refresh-preview` runs on a **daily schedule plus at laptop start-up**, and manually. Reword ROADMAP success criterion 2 "whenever she opens Preview" to "at agreed times" (with D-03).
+- **D-29:** Preview uses the **`midnight`** built-in theme.
+- **D-30:** D-08 backups use each calendar's **secret iCal address**, stored in the gitignored family file, with a non-empty check and a hard stop on failure.
+- **D-31:** HA core settings (time zone, country, currency, units) for Dev and Preview come from the **gitignored host env file**; reconcile with Home in Phase 4.
+
 ### Claude's Discretion
 - Exact `[PREVIEW]`/`[DEV]` tag wording and the local family-file schema/path.
-- Which distinct built-in theme Preview uses.
+- Which distinct built-in theme Preview uses. (Now fixed by D-29: `midnight`.)
 - Certificate tooling (mkcert-style local CA vs self-signed), as long as D-06 holds.
 - Mechanism for the Dev/Preview-only delete warning (D-09).
 - Layout of `dev/`, `tools/seed/`, `scripts/` (research suggests `dev/compose*.yaml`, `tools/seed/`, thin `scripts/` wrappers).
@@ -53,8 +68,6 @@
 - Wall-tablet bookmark/kiosk access: already v2 (ENVX-02).
 - Publishing the family guide on the Docusaurus site: later.
 - PREVIEW banner strip: not wanted now; reconsider if she confuses Preview with Home.
-
-**Scope changes agreed in discuss-phase (CONTEXT `<domain>`; the planner must reflect them):** (1) Preview runs on the developer's laptop for now, so "always-on" becomes "available whenever the laptop is on at home". (2) Dev and Preview connect read/write to a chosen list of the family's real Google calendars. This overrides PREV-03's calendar clause, the PROJECT.md/REQUIREMENTS.md out-of-scope row "Real family calendars or data in Preview", and ROADMAP Phase 2 success criterion 2's "or touches the real family calendars". The notification/speaker isolation half of PREV-03 is unchanged.
 </user_constraints>
 
 <phase_requirements>
@@ -62,209 +75,221 @@
 
 | ID | Description | Research Support |
 |----|-------------|------------------|
-| DEV-01 | One-command Dev HA (Compose, pinned image, own port, integration mounted live) | Compose base + overlay pattern; image tag `2026.10.4` verified on ghcr.io; Dev port 8130 bound to loopback; `:ro` bind mount + `PYTHONDONTWRITEBYTECODE=1` |
-| DEV-02 | Python changes after HA restart, card JS after browser refresh, no copying | Static paths serve straight from the mounted dir; served JS has `ETag`/`Last-Modified` and no `Cache-Control` (heuristic caching caveat, A9) |
-| DEV-03 | Dev seeded from the same tool, resettable incl. `family_hub_backups/` | Same `tools/seed` entry point; reset = stop, delete whole volume (helper container), re-seed; Google entry preservation pattern |
-| PREV-01 | Reachable stable address, separate HA instance sharing nothing with Home | D-01/D-05; bridge networking; discovery integrations omitted; own `core.uuid` (never copy Home config) |
-| PREV-02 | Distinct name, theme, server entry | `config/core/update` `location_name` verified; built-in theme ids quoted; Companion server list |
-| PREV-03 | Nothing reaches the real world (notifications) and calendar clause rewritten per D-07 | Notifications only go to explicit `notifyTargets`/`alarmDevices` (all default off); verification checks listed; Google guardrails D-08..D-11 |
-| PREV-04 | Realistic current week, date-relative, never stale | Seed commands all verified; refresh command + scheduling recommended (Pitfall 9) |
-| PREV-05 | `deploy-preview <branch>` restarts and verifies served cards | `git archive` export, stamp substitution, restart, readiness (not `/api/onboarding`), served-hash check against `lovelace/resources` |
-| PREV-06 | `reset-preview` clears everything incl. backups | Whole-volume wipe; Google entry preservation; HTTP-config promote step |
-| PREV-07 | Visible build stamp | Placeholder substitution at deploy time (Pattern 6); `hass.config.location_name` gives the environment |
-| PREV-08 | Dashboard + resources auto-created and verified | `lovelace/dashboards/create` + `lovelace/config/save` verified; 13 resources auto-registered and read back |
-| ACCESS-01 | Her non-admin account sees only Family Hub | `frontend/set_user_data` key `sidebar` as her token verified in a real browser; panel id `theme-builder` must be hidden too |
-| ACCESS-02 | One tap from phone | Companion second server (D-16); CA trust evidence and fallbacks in Standard Stack/Pitfalls |
-| ACCESS-03 | Plain-language guide in `docs/family/` with screenshots | Headless Chromium screenshot recipe verified (token injection into `hassTokens`) |
-| ACCESS-04 | She ticks a chore and redeems a reward unaided | Verified as a non-admin: assignee can `chores/complete`, user can `rewards/redeem` own balance |
+| DEV-01 | One-command Dev HA (Compose, pinned image, own port, integration mounted live) | Compose base + overlay (rendered and checked with `docker compose config` this session); image `2026.10.4`; Dev on `127.0.0.1:8130`; `:ro` bind mount + `PYTHONDONTWRITEBYTECODE=1`; WSL ext4 repo location |
+| DEV-02 | Python changes after HA restart, card JS after browser refresh, no copying | **Soft reload does NOT reliably pick up edited card JS** (reproduced in Chromium, Pitfall 12); fix = `dev-cards` helper that rewrites the `?v=` hash through `lovelace/resources/update` (verified), plus hard-reload fallback |
+| DEV-03 | Dev seeded from the same tool, resettable incl. `family_hub_backups/` | Same `tools/seed` entry point; reset = stop, wipe via helper container, re-seed; Google entry preserved per env |
+| PREV-01 | Reachable at a stable address, separate instance sharing nothing with Home | D-01/D-05/D-23; bridge networking; own identity; WSL mirrored networking + Hyper-V firewall rule (NOT only a Defender rule); reworded for "whenever laptop is on" (D-03) |
+| PREV-02 | Distinct name, theme, server entry | `config/core/update` `location_name` (verified); theme `midnight` (verified in `__init__.py:405`, default is `slate`) |
+| PREV-03 | Nothing reaches the real world (notifications); calendar clause rewritten per D-07 | Notification opt-in model + allow-list verify; Google guardrails D-08..D-11; week-anchored diff sync limits churn on real calendars |
+| PREV-04 | Realistic current week, date-relative, never stale | Seed commands verified; `refresh-preview` (D-28) via Windows Task Scheduler; week-anchored keys |
+| PREV-05 | `deploy-preview <branch>` restarts and verifies served cards | `git archive`, stamp substitution, restart, host-side readiness, served-hash check |
+| PREV-06 | `reset-preview` clears everything incl. backups | Whole-volume wipe via helper container; Google entry preservation; HTTP promote step; her stable credentials (D-27) |
+| PREV-07 | Visible build stamp | Placeholder substitution in the exported copy only (Pattern 6) |
+| PREV-08 | Dashboard + resources created and verified automatically | `lovelace/dashboards/create` + `lovelace/config/save`; integration's own resource registration verified; read-back assertion |
+| ACCESS-01 | Her non-admin account sees only Family Hub | `frontend/set_user_data` `sidebar` as her token; `theme-builder` panel id must be hidden too |
+| ACCESS-02 | One tap from phone | Companion second server (D-16); CA trust evidence and fallback ladder |
+| ACCESS-03 | Plain-language guide in `docs/family/` with screenshots | Headless Chromium recipe (token injection); real-phone screenshots only for Android install screens |
+| ACCESS-04 | She ticks a chore and redeems a reward unaided | Verified as non-admin (2026-10-28) |
 | ACCESS-05 | She confirms one trivial deployed change | Build stamp + deploy flow; first change is D-22 |
 </phase_requirements>
 
 ## Project Constraints (from CLAUDE.md)
 
-Extracted from `/home/user/HA-Family-Hub/.claude/CLAUDE.md` (treated as locked, same authority as CONTEXT decisions):
+Extracted from `/home/user/HA-Family-Hub/.claude/CLAUDE.md` (same authority as locked decisions):
 
 - **License:** GPLv3 derivative; keep upstream credit.
 - **Platform:** HA custom integration, HA >= 2024.12.0 declared (`hacs.json`); Dev, Preview and tests pinned to 2026.10.4 in `versions.env`.
-- **Tech stack:** Python on HA Core APIs with no extra Python deps in the integration; vanilla JS web components, no bundler, build-free delivery.
-- **Locality:** everything runs locally; no cloud services (Phase 2 exception: Google Calendar API, D-07).
-- **Safety:** Preview isolated from the family's real HA; experiments must never break the real setup.
+- **Tech stack:** Python on HA Core APIs, no extra Python deps in the integration; vanilla JS web components, no bundler.
+- **Locality:** everything runs locally, no cloud services (Phase 2 exception: Google Calendar API, D-07).
+- **Safety:** Preview isolated from the family's real HA; experiments never break the real setup.
 - **Usability:** acceptance criteria and UAT are things she does and sees; she is non-technical.
-- **Code health:** changes to `__init__.py` or the calendar card should extract focused modules rather than grow the monoliths; no tests exist yet, so large files are risky. Keep the D-09 and D-20 card changes tiny and additive.
-- **Served paths:** only `card/` and `panel/` JS is served; edits must target those copies.
-- **Conventions:** double quotes, `from __future__ import annotations` first in Python modules, `_LOGGER` with `%s` lazy formatting, no `print()` in integration code, no debug `console.log` in committed cards (`console.info` for the build stamp is explicitly decided in D-20), no `.bak_*` files, new backend constants in `const.py`, new websocket commands in the matching `*_websocket_api.py` `ALL_COMMANDS`.
-- **GSD workflow:** file changes go through a GSD command; no direct repo edits outside a GSD workflow.
-- **Project skills:** none found (`.claude/skills/` and `.agents/skills/` do not exist).
+- **Code health:** changes to `__init__.py` or the calendar card prefer extracting focused modules; no tests exist yet. Keep the D-09 and D-20 card changes tiny and additive.
+- **Served paths:** only `card/` and `panel/` JS is served; edit those copies only.
+- **Conventions:** double quotes; `from __future__ import annotations` first in Python modules; `_LOGGER` with `%s` lazy formatting; no `print()` in integration code (seed tooling under `tools/` is not integration code); no debug `console.log` in cards (`console.info` for the stamp is decided in D-20); no `.bak_*` files; new backend constants in `const.py`; new websocket commands in the matching `*_websocket_api.py` `ALL_COMMANDS`.
+- **GSD workflow:** file changes go through a GSD command.
+- **Project skills:** none (`.claude/skills/`, `.agents/skills/` absent).
 
 ## Summary
 
-The whole backend half of this phase is feasible with public HA APIs only, and it was demonstrated end to end. In this session a real Home Assistant Core 2026.10.4 (Python 3.14.9, installed with `uv pip install homeassistant==2026.10.4`, no Docker) was started with this repository's integration, and a script onboarded it, created a non-admin account for her and kid accounts, created Local Calendar and Local To-do entries, drove the Family Hub config flow (including the `member_profile` loop), created a storage-mode dashboard, confirmed 13 card resources auto-registered, seeded chores/rewards/goals/routines/PINs/settings/theme/meals/events, hid every sidebar panel except Family Hub for her, and then rendered her dashboard in headless Chromium as her. Family Hub's `voluptuous`-based websocket commands work unchanged on HA 2026.10.4 even though HA core itself moved to its `probatio` fork.
+The HA-side half of this phase is feasible with public HA APIs only. On 2026-10-28 a real HA Core 2026.10.4 was started with this repository's integration and a script onboarded it, created her non-admin account and kid accounts, created Local Calendar/To-do entries, drove the 11-step Family Hub config flow (including the `member_profile` loop), created a storage-mode dashboard, hid every panel except Family Hub for her and rendered her dashboard in headless Chromium. In this session the key mechanics were spot re-run on the same version: onboarding (4 steps), `mobile_app` registration (201 with the minimal `mobile_app:` + `my:` config), `lovelace/resources/create|update` (works, key `resource_id`), `config/core/update` (location name), and the pending-HTTP behaviour (`active_config_type: "pending"` with a `revert_at` timestamp for **any** `http:` YAML, even just a port).
 
-Four findings change the plan materially. (1) **HA 2026.10 imports `http:` YAML once as a *pending* config and restarts back to the default (HTTP, port 8123) after 5 minutes unless an admin calls `http/config/promote`.** HTTPS on a fresh Preview volume therefore needs the seed to promote it, or it silently disappears five minutes after every reset. (2) **D-10 is feasible**: only the Google *config entry* (it holds the token) needs preserving; the OAuth client can be re-created through `application_credentials/create`, and a pre-written `core.config_entries` containing only that entry loads once the credential exists and the entry is reloaded. Two hard prerequisites: the Google OAuth app must be published ("In production"), or Google expires the refresh token every 7 days, and the `my:` integration must be loaded or HA will not use the `my.home-assistant.io` redirect that Google accepts. (3) **Companion trust of a user-installed CA is supported but only recently stable**: the Android app fixed a user-CA regression in release 2026.6.5 (PR #7044, merged 2026-06-18); custom ROMs (/e/OS, LineageOS) had failures. A name-constrained CA created with plain `openssl` was verified to work with HA's TLS and to refuse public names. (4) **`reset-preview` logs her phone out**: wiping the volume removes the auth store, so her Companion session on the Preview server is invalid until she signs in again; this is a plan-level UX item, not a bug.
+**What changed since the 2026-10-28 research (CONTEXT D-23..D-31):**
 
-Seeding the tagged Google events (D-11) is the highest-risk code and is testable without Google: Local Calendar exposes the same create/read/delete API surface (`calendar.create_event`, `GET /api/calendars/<entity>` returning `uid`, WS `calendar/event/delete`), so the tag-matching logic can have an automated test and dry-run against a Local Calendar in a pip-installed HA.
+| Decision | Effect on this research |
+|----------|-------------------------|
+| D-23 Windows + WSL2 + Docker Engine + mirrored networking | New host-layer section. Material new risks: the required firewall rule is a **Hyper-V firewall** rule (VMCreatorId GUID quoted below), not only a Defender rule; WSL distros shut down despite systemd (open WSL regression), so a **Windows-side keep-alive scheduled task** is required; 2026 WSL builds (2.9.x) have a reported mirrored-mode Docker bind regression; line endings and filesystem location (WSL ext4, never `/mnt/c`) become plan requirements. Needs a laptop checkpoint with a fallback ladder. |
+| D-24 Wi-Fi | `scripts/doctor` + guide step for random hardware addresses; DHCP reservation keys on the Wi-Fi adapter MAC, which mirrored mode shares with WSL. |
+| D-25 events on the real calendars, buzz accepted | Closes old Open Question 2 (no dedicated calendar). Added a **week-anchored, diff-based sync** recommendation so daily refreshes do not delete/re-create events every morning (which would buzz family phones daily). |
+| D-26 developer's own Google account, app published | Consistent with the verified 7-day rule; re-checked against HA docs and Google OAuth docs today. Closes old Open Question 3. |
+| D-27 re-login after reset acceptable | Closes old Open Question 4 as a decision. Recommend seeding **her same username/password** (generated once, kept in `dev/.ha-secrets/`) so the guide's re-login line is literally "sign in with your usual details". Pinning `core.uuid` is dropped as default (still a fallback). |
+| D-28 daily + at start-up refresh | Windows Task Scheduler is the scheduler (WSL is not always running); closes old Open Question 5. |
+| D-29 `midnight` theme | Verified the id exists and differs from the default `slate`. Closes old assumption A15 and Open Question 6. |
+| D-30 secret iCal address | Closes old Open Question 7. Added caveats: Google documents no refresh interval for the feed; only calendars you own expose it (unverified). Optional supplement: a fresh HA-API JSON snapshot. |
+| D-31 core settings from host env | `config/core/update` accepts `country, currency, elevation, language, latitude, longitude, time_zone, unit_system, internal_url` (verified). Closes old Open Question 8. |
 
-**Primary recommendation:** Build `tools/seed/` as a small `aiohttp` client that only talks to HA's public APIs (steps verified below), drive it from thin `scripts/*` wrappers, run its automated tests against a pip-installed HA 2026.10.4 (not Docker), and treat Docker/Android/Google steps as explicit human-verify checkpoints on the developer's laptop and her real phone.
+**Primary recommendation:** Build `tools/seed/` as a small `aiohttp` client over HA's public APIs (steps verified below), driven by thin bash `scripts/*`, targeting `https://127.0.0.1:<port>` from inside WSL; test the D-11 tag matcher as a pure function plus once against a Local Calendar in a pip-installed HA 2026.10.4; and make the Windows/WSL2 host layer, Google OAuth and her Android phone explicit human-verify checkpoints with written fallbacks.
 
 ## Answers to the Questions CONTEXT and ROADMAP Assign to Research
 
 | Question | Answer | Confidence |
 |----------|--------|------------|
-| **D-10**: how HA stores app credentials and the OAuth token; is preserving only those safe? | Credentials: `.storage/application_credentials`, item `id` = slug of `google.<client_id>` (e.g. `google_fake_client_apps_googleusercontent_com`), fields `domain, client_id, client_secret, name`. Token: inside the Google config entry in `.storage/core.config_entries` (`data.token`, `data.auth_implementation`, `data.credential_type`), entry `unique_id` = the account's primary calendar id. Preserving **only the Google entry** is feasible and was verified mechanically: pre-write a `core.config_entries` holding just that entry, start HA, create the credential via WS `application_credentials/create`, `POST /api/config/config_entries/entry/<id>/reload` -> state `loaded`. Without the credential the entry goes to `setup_error` ("re-authentication required"). The OAuth client id/secret need not be preserved (recreate from the local file). Fallback: re-sign-in via the UI (Google "Web application" client, redirect `https://my.home-assistant.io/redirect/oauth`). | HIGH (mechanics, spike), MEDIUM (real Google token behaviour) |
-| **D-06**: does Android Companion accept a user-installed CA? | Yes, with caveats. Home Assistant Android PR #7044 (merged 2026-06-18) "Use default Trust manager and fallback to user installed CA" shipped in 2026.6.5; issue #5565 (Fairphone/e-OS) shows earlier failures and that a name-constrained CA worked for a reporter. Maintainer position: the app relies on the device trust store. Fallbacks if it fails on her phone: Chrome "Add to Home screen" shortcut (Chrome trusts user CAs; ACCESS-02 allows a home-screen shortcut), a publicly trusted cert on a domain you own (DNS-01 challenge) pointing at the LAN IP, Tailscale HTTPS (deferred), or plain HTTP only as an explicit, documented decision. | MEDIUM |
-| **D-04**: Docker-on-laptop specifics | HA docs: "Docker *Desktop* will not work; you must use Docker *Engine*" (for the documented host-network install). With bridge networking + a published port Desktop is technically usable but unsupported by HA, and has a known VM clock-drift-after-sleep problem. Engine on Linux is the recommended target. Published ports bind all interfaces by default. See Pitfalls 6-8. | MEDIUM |
-| Dashboard + resource creation path | Storage-mode: WS `lovelace/dashboards/create` then `lovelace/config/save`. The integration's own best-effort resource registration **worked** on 2026.10.4 (13 resources logged and returned by `lovelace/resources`), so the seed only needs to read back and assert, and falls back to `lovelace/resources/create` if any is missing. | HIGH |
-| Which `family_hub/*` commands seed data without a kiosk session | An admin token alone suffices: `chores/create`, `rewards/add_catalog_item`, `rewards/adjust_balance`, `goals/create`, `routines/create`, `kiosk/set_pin`, `permissions/set`, `get_settings`/`set_settings`, `set_recipes` all succeeded. Meals are plain `todo.add_item` calls on `todo.meal_plan`. | HIGH |
-| Driving the 11-step config flow | Step ids and field names below (verified by running the flow). `async_step_user` returns the `features` form directly. | HIGH |
-| Non-admin dashboard and sidebar | Create the dashboard (non-admin visible), log in **as her** (login_flow) and call `frontend/set_user_data` key `sidebar` with `hiddenPanels` computed from her `get_panels` (everything except `family-hub`). Verified in headless Chromium: before including `theme-builder` in the list it still showed, proving the id must be exact. | HIGH |
-| HTTPS secure-context differences | Only one secure-context-sensitive API use exists in the served JS (clipboard, with an `execCommand` fallback), see Pitfall 12. | HIGH |
-| Preview host + Companion second server | Laptop per D-01; multi-server in the Android app is official ("Settings > Companion app", add server). Companion registers a `mobile_app` device per server and shares sensors/location with every server. | MEDIUM |
+| **D-10**: how HA stores app credentials and the OAuth token; is preserving only those safe? | Credentials: `.storage/application_credentials` (id derived from the client id; fields `domain, client_id, client_secret, name`). Token: inside the Google config entry in `.storage/core.config_entries` (`data.token`, `data.auth_implementation`), entry `unique_id` = the account's primary calendar id. Preserving **only the Google entry** is feasible: pre-write a `core.config_entries` holding just that entry into the empty volume (`{"version": 1, "minor_version": 5, "key": "core.config_entries", "data": {"entries": [...]}}`; version/minor_version re-read from a live file this session), start HA, create the credential via WS `application_credentials/create`, reload the entry, state becomes `loaded`. Without the credential the entry goes to `setup_error`. Fallback: one-time UI re-sign-in. Prerequisite: app published (D-26). | HIGH (mechanics, 2026-10-28 execution with a fake token), MEDIUM (real Google token) |
+| **D-06**: does Android Companion accept a user-installed CA? | Yes since PR #7044 (merged 2026-06-18, "Use default Trust manager and fallback to user installed CA"); first fixed in app release 2026.6.5. **Open caveat:** issue #7346 (opened 2026-08-18, still open) reports "Trust anchor for certification path not found" on app 2026.6.5 when the server sends only a leaf signed by an **intermediate** of a custom root. Our design therefore uses a single **root** CA signing the leaf directly (no intermediate) and serves leaf + CA in the PEM. Fallbacks if the phone still rejects: Chrome "Add to Home screen"; a publicly trusted certificate on a domain you own; Tailscale HTTPS (deferred); plain HTTP only as an explicit decision. | MEDIUM |
+| **D-04/D-23**: Docker-on-laptop specifics | Windows 11 22H2+ + WSL2 + Docker Engine in the distro. Mirrored mode shares the Windows IP with WSL (MS docs), so the Wi-Fi reservation applies. Inbound LAN access needs a Hyper-V firewall rule; Docker published ports in mirrored mode work for LAN clients in reports but are version-sensitive (Pitfalls 4-5). Sleep pauses everything (D-03). | MEDIUM-LOW |
+| Dashboard + resource creation path | Storage-mode: WS `lovelace/dashboards/create` then `lovelace/config/save`. The integration's own best-effort resource registration worked on 2026.10.4 (13 card resources); the seed reads them back and asserts, falling back to `lovelace/resources/create`. | HIGH |
+| Which `family_hub/*` commands seed data without a kiosk session | An admin token suffices: `chores/create`, `rewards/add_catalog_item`, `rewards/adjust_balance`, `goals/create`, `routines/create`, `kiosk/set_pin` (admin only), `get_settings`/`set_settings`, `set_recipes`, `permissions/set` (executed 2026-10-28; schemas re-read today). Meals are `todo.add_item` on `todo.meal_plan`. | HIGH |
+| Driving the 11-step config flow | Step order and field names below (field constants re-verified by grep today). | HIGH |
+| Non-admin dashboard and sidebar | Create the dashboard (non-admin visible), log in **as her** (login flow) and call `frontend/set_user_data` key `sidebar` with `hiddenPanels` computed from her `get_panels`. | HIGH |
+| HTTPS secure-context differences | Only the clipboard fallback in the calendar card is secure-context sensitive (Pitfall 14). | HIGH |
+| Preview host + Companion second server | D-01/D-23; multi-server is an official Android feature; each server gets its own `mobile_app` device (verified registration works). | MEDIUM |
 
 ## Architectural Responsibility Map
 
 | Capability | Primary Tier | Secondary Tier | Rationale |
 |------------|-------------|----------------|-----------|
-| Run HA instances (Dev/Preview) | Host / Docker | -- | Compose base + per-env overlay; no shared volume, own `core.uuid` |
-| TLS termination | HA Core `http` (in-container) | Host cert files (bind-mounted ro) | Simplest; same cert for Dev and Preview; no reverse proxy needed |
-| Bootstrapping users/entries/dashboard | Seed tool (host, public HA APIs) | -- | Never write `.storage` of a running HA |
-| Family data (chores, rewards, goals, routines, PINs, settings, theme) | Family Hub backend via its own `family_hub/*` commands | Seed tool | Admin-gated commands already exist; no new backend code needed |
-| Meals, to-do lists, local calendars | HA built-ins (`todo.add_item`, `calendar.create_event`) | Seed tool | Family Hub stores meals in `todo.meal_plan` item descriptions |
+| Run HA instances (Dev/Preview) | WSL2 Docker Engine | Compose base + overlay | No shared volume, own identity |
+| Make Preview reachable from her phone | Windows host (mirrored networking, Hyper-V firewall rule, DHCP reservation) | Router | Phone talks to the laptop's Wi-Fi IP |
+| Keep WSL/Docker running and schedule refresh | Windows Task Scheduler | systemd inside WSL (Docker only) | WSL is not reliably always running (Pitfall 5) |
+| TLS termination | HA Core `http` in-container | Cert files bind-mounted ro | Simplest; no reverse proxy |
+| Bootstrapping users/entries/dashboard | Seed tool (in WSL, public HA APIs) | -- | Never write `.storage` of a running HA |
+| Family data | Family Hub backend via its own commands | Seed tool | No new backend code needed |
+| Meals, to-do lists, local calendars | HA built-ins | Seed tool | Meals live in `todo.meal_plan` descriptions |
 | Real family calendars | HA Google Calendar integration | Seed tool (tag + disable non-chosen entities) | Read/write per D-07 |
-| Google sign-in persistence | Seed tool + host secrets dir (`dev/.ha-*`, 0600) | HA `application_credentials` | Only the config entry JSON is preserved |
-| Calendar backups (`.ics`) | Host script | Google secret iCal address | Outside the HA volume (D-08) |
-| Build stamp + deploy | `deploy-preview` (host) | Card JS placeholder constants | Stamp substituted into the deployed copy; Dev shows "live" |
-| Delete-event warning (D-09) | Calendar card (browser) | `family_hub/calendar/delete_support` already returns `platform` | Tiny additive change in `card/` |
-| Her sidebar/default dashboard | HA frontend user data (her token) | Seed tool login-flow | Per-user; cannot be set from an admin token |
-| Guide + screenshots | Static Markdown (`docs/family/`) | Headless Chromium against seeded Dev | Verified token-injection recipe |
+| Google sign-in persistence | Seed tool + host secrets dir (0600) | HA `application_credentials` | Only the config entry JSON is preserved |
+| Calendar `.ics` backups | Host script | Google secret iCal address | Outside the HA volume (D-08) |
+| Build stamp + deploy | `deploy-preview` (host) | Card placeholder constants | Stamp substituted into the deployed copy only |
+| Delete-event warning (D-09) | Calendar card (browser) | `family_hub/calendar/delete_support` | Tiny additive card change |
+| Her sidebar/default dashboard | HA frontend user data (her token) | Seed tool login flow | Per-user, cannot be set from an admin token |
+| Guide + screenshots | Static Markdown `docs/family/` | Headless Chromium against seeded Dev | Android install screens need her real phone |
 
 ## Standard Stack
 
 ### Core
 | Library | Version | Purpose | Why Standard |
 |---------|---------|---------|--------------|
-| Home Assistant container `ghcr.io/home-assistant/home-assistant` | `2026.10.4` (manifest HTTP 200 on ghcr.io) [VERIFIED: ghcr.io registry API, this session] | Dev + Preview runtime | Pinned in `versions.env` as `HA_VERSION=2026.10.4`; same version the Phase 3 test plugin pins |
-| Docker Engine + Compose v2 | Engine >= 23.0.0 [CITED: home-assistant.io/installation/linux] | Run containers | HA's stated minimum; Docker Desktop not supported by HA docs |
-| Python | 3.14 via `uv` (3.14.9 installed in the spike) [VERIFIED: `uv venv --python 3.14`] | Seed tool + optional pip-installed HA for tests | HA 2026.10 core requires 3.14 (core source uses PEP 758 `except A, B:`) |
-| `aiohttp` | 3.14.5 (installed as an HA dependency) | Seed tool REST + WebSocket client | Already part of HA's dependency set; user creation is WebSocket-only |
-| `PyYAML` | 6.0.3 (installed as an HA dependency) | Read `family.local.yaml` / example family file | HA dependency; avoids a new pin |
-| `openssl` | 3.0.13 here; any 3.x [VERIFIED: ran it] | Name-constrained local CA + leaf cert | No mkcert dependency; constraint verified to reject public names |
-| `playwright` (Python) | 1.64.1 (Chromium headless shell 156) [VERIFIED: installed and rendered her dashboard] | Guide screenshots (and Phase 3's TEST-05 later) | Matches the Phase 3 stack decision |
+| Home Assistant container `ghcr.io/home-assistant/home-assistant` | `2026.10.4` (manifest HTTP 200 on ghcr.io, 2026-10-28) | Dev + Preview runtime | Pinned in `versions.env` (`HA_VERSION=2026.10.4`) |
+| Docker Engine + Compose v2 inside WSL2 Ubuntu | Engine >= 23.0.0 [CITED: home-assistant.io/installation/linux]; Compose 5.6.1 rendered the planned files in this sandbox | Run containers | HA docs: Docker Desktop is unsupported (D-23) |
+| WSL2 with systemd | `[boot] systemd=true` in `/etc/wsl.conf` [CITED: learn.microsoft.com/windows/wsl/wsl-config] | Start dockerd with the distro | Documented key |
+| Python | 3.14 via `uv` (CPython 3.14.9 used) | pip-installed HA for tests; seed tool | `versions.env` `PYTHON_VERSION=3.14` |
+| `aiohttp` | 3.14.5 | Seed REST + WebSocket client | Already a dependency of the pinned HA |
+| `PyYAML` | 6.0.3 | Read `family.local.yaml` | HA dependency |
+| `openssl` | 3.x | Name-constrained local CA + leaf | No mkcert dependency |
+| `playwright` (Python) | 1.64.1 (installed and launched Chromium in this sandbox) | Guide screenshots (Phase 3 TEST-05 later) | Matches Phase 3 stack |
 
 ### Supporting
 | Library | Version | Purpose | When to Use |
 |---------|---------|---------|-------------|
-| `homeassistant` (pip) | 2026.10.4 | Automated seed-tool tests without Docker | CI/sandbox verification; the same venv the Phase 3 pytest plugin will use |
-| `gcal-sync` / `ical` | 9.2.0 / 14.3.0 (pulled by HA's `google` integration at runtime) | Google Calendar integration requirements | Not installed by us; listed in `google/manifest.json` |
+| `homeassistant` (pip) | 2026.10.4 | Automated seed-tool tests without Docker | The D-11 live test; same venv Phase 3 will use |
 
 ### Alternatives Considered
 | Instead of | Could Use | Tradeoff |
 |------------|-----------|----------|
-| Name-constrained `openssl` CA | `mkcert` | mkcert's CA is unconstrained (a stolen root key can impersonate any site on every device that trusts it); mkcert is fine for the laptop browser only. Either satisfies D-06 |
-| `http:` YAML + `http/config/promote` | `http/config/configure` WS (sets pending, restarts, then promote) | YAML import is deprecated, with a repair issue, `breaks_in_ha_version="2027.2.0"` [VERIFIED: homeassistant/components/http/config.py]. YAML is one start fewer; revisit when HA is bumped |
-| Bind-mounted config dir | Named Docker volume | Bind mount keeps host tooling simple and matches Phase 1 D-10 (`dev/.ha-*`); root-owned files need a helper container to delete (Pitfall 7) |
-| Secret iCal address for `.ics` backups | Google Calendar API export with the preserved token | iCal address needs no OAuth but exposes a read URL per calendar; API export is lossless but needs custom ICS conversion |
-| Google "Device Auth" client | Web application client | Device auth is legacy: "those credentials are no longer recommended" [CITED: home-assistant.io/integrations/google]; but the HA flow still tries device auth first when the credential is of that type |
+| Name-constrained `openssl` root CA | `mkcert` | mkcert's CA is unconstrained; fine for the laptop browser only. Either satisfies D-06 |
+| `http:` YAML + `http/config/promote` | `http/config/configure` WS | YAML import is deprecated (`breaks_in_ha_version 2027.2.0`); plan the move on the next HA bump |
+| Bind-mounted config dir | Named Docker volume | Bind mount keeps host tooling simple and matches Phase 1 D-10 (`dev/.ha-*`) |
+| WSL mirrored networking | NAT + `netsh interface portproxy` | NAT is the WSL default and avoids mirrored-mode Docker regressions, but the WSL VM IP changes per start so the proxy must be re-created by a boot task (fallback only) |
+| Secret iCal address for backups (D-30, locked) | HA API JSON snapshot | Fresh and available for any readable calendar; not ICS. Add as a supplement, not a replacement |
 
-**Installation (seed tool environment):**
+**Installation (seed tool environment, inside WSL):**
 ```bash
-uv venv --python 3.14 .venv            # versions.env: PYTHON_VERSION=3.14
-uv pip install --python .venv/bin/python "homeassistant==2026.10.4"   # tests only; brings aiohttp, PyYAML
+uv venv --python 3.14 .venv
+uv pip install --python .venv/bin/python "aiohttp==3.14.5" "PyYAML==6.0.3"        # seed tool
+uv pip install --python .venv/bin/python "homeassistant==2026.10.4"               # only for the live D-11 test
 uv pip install --python .venv/bin/python playwright && .venv/bin/python -m playwright install chromium   # screenshots only
 ```
 
-**Version verification:** `homeassistant 2026.10.4`, `aiohttp 3.14.5`, `pyyaml 6.0.3`, `playwright 1.64.1`, `gcal-sync 9.2.0`, `ical 14.3.0`, `home-assistant-frontend 20260930.5` were read from `uv pip list` after installing in this session. The image tag `2026.10.4` returned HTTP 200 for its manifest on ghcr.io.
+**Version verification:** `aiohttp 3.14.5`, `PyYAML 6.0.3` read from the HA venv this session; `playwright 1.64.1` installed from PyPI this session; `homeassistant 2026.10.4` is the venv at `~/.cache/fh-hassfest/venv` (`homeassistant.const.__version__` printed `2026.10.4`).
 
 ## Package Legitimacy Audit
 
-`gsd-tools query package-legitimacy check --ecosystem pypi aiohttp pyyaml playwright homeassistant` returned **SUS for all four**. The reasons are data artefacts, not malice signals: `unknown-downloads` (PyPI JSON exposes no download counts), `too-new` (the *latest release* was published days ago: aiohttp 2026-10-11, playwright 2026-10-22, homeassistant 2026-10-24), and `no-repository` for playwright (PyPI metadata has no `repoUrl`). All four are long-established projects and three arrive transitively with the pinned `homeassistant` package.
+`gsd-tools query package-legitimacy check --ecosystem pypi aiohttp pyyaml playwright homeassistant` was re-run this session and again returned **SUS for all four**, for data-artefact reasons: `unknown-downloads` (PyPI exposes no download counts), `too-new` (the latest release is days old: aiohttp 2026-10-11, playwright 2026-10-22, homeassistant 2026-10-24) and `no-repository` for playwright. All are long-established projects; aiohttp and PyYAML arrive transitively with the pinned `homeassistant`.
 
 | Package | Registry | Age | Downloads | Source Repo | Verdict | Disposition |
 |---------|----------|-----|-----------|-------------|---------|-------------|
-| aiohttp | PyPI | long-established (aio-libs) | unavailable | github.com/aio-libs/aiohttp | SUS (seam: too-new, unknown-downloads) | Flagged: already a hard dependency of the pinned HA; planner adds one `checkpoint:human-verify` for the seed environment install |
-| PyYAML | PyPI | long-established | unavailable | pyyaml.org | SUS (seam: unknown-downloads) | Flagged: HA dependency; same single checkpoint |
-| playwright | PyPI | Microsoft project | unavailable | none in PyPI metadata | SUS (seam: too-new, unknown-downloads, no-repository) | Flagged: optional (screenshots); planner adds `checkpoint:human-verify` before installing |
-| homeassistant | PyPI | long-established | unavailable | home-assistant.io | SUS (seam: too-new, unknown-downloads) | Flagged: test/CI venv only; same checkpoint |
+| aiohttp | PyPI | long-established (aio-libs) | unavailable | github.com/aio-libs/aiohttp | SUS (too-new, unknown-downloads) | Flagged: planner adds one `checkpoint:human-verify` for the seed environment install |
+| PyYAML | PyPI | long-established | unavailable | pyyaml.org | SUS (unknown-downloads) | Flagged: same single checkpoint |
+| playwright | PyPI | Microsoft project | unavailable | none in PyPI metadata | SUS (too-new, unknown-downloads, no-repository) | Flagged: optional (screenshots); `checkpoint:human-verify` before installing |
+| homeassistant | PyPI | long-established | unavailable | home-assistant.io | SUS (too-new, unknown-downloads) | Flagged: test venv only; same checkpoint |
 
 **Packages removed due to [SLOP] verdict:** none
-**Packages flagged as suspicious [SUS]:** aiohttp, PyYAML, playwright, homeassistant (all data-artefact SUS; the planner inserts one `checkpoint:human-verify` covering the seed environment before first install).
+**Packages flagged as suspicious [SUS]:** aiohttp, PyYAML, playwright, homeassistant (one `checkpoint:human-verify` covering the seed environment before first install).
 
-*Package names were taken from the project's own STACK.md and the pinned HA dependency set, and were installed from PyPI in this session; they are `[ASSUMED]` for gating purposes because the seam did not return OK. No npm packages are introduced in this phase.*
+*Names came from the project's STACK.md and the pinned HA dependency set. They are installed from PyPI but remain `[ASSUMED]` for gating because the seam did not return OK. No npm packages are introduced in this phase.*
 
 ## Architecture Patterns
 
 ### System Architecture Diagram
 
 ```
-                     versions.env (HA_VERSION=2026.10.4)  +  dev/host.env (gitignored: IP, TZ, ports, creds paths)
-                                         |
-        +--------------------------------+----------------------------------+
-        |                                                                   |
- scripts/dev-up, dev-reset                                  scripts/deploy-preview <branch>, reset-preview, refresh-preview
-        |                                                                   |
-        |  (1) calendar .ics backup (Google secret iCal URLs) -> dev/.ha-backups/<date>/      [D-08]
-        |  (2) docker compose down; wipe volume via helper container (keep custom_components/)
-        |  (3) write fresh config: configuration.yaml (rendered), .storage/core.config_entries
-        |      containing ONLY the preserved Google entry (if any)                            [D-10]
-        |  (4) deploy: git archive <branch> -> stamp substitution -> rsync --delete into volume
-        |  (5) docker compose up -d   (HA first boot ~1-3 min; pending HTTP config starts 5 min revert timer)
-        v                                                                   v
-+-------------------------+                              +-----------------------------------+
-| DEV HA   :8130 (127.0.0.1)                             | PREVIEW HA  :8124 (LAN)            |
-| bind-mount working copy (:ro)                          | exported branch copy, restart      |
-| https cert from dev/.ha-certs                          | https cert from dev/.ha-certs      |
-+-----------^-------------+                              +-----------------^-----------------+
-            |                                                              |
-            |       tools/seed (aiohttp; public HA APIs; --target dev|preview allow-list)
-            |   a. wait RUNNING   b. POST /api/onboarding/users, /core_config, /analytics, /integration
-            |   c. http/config/promote  d. config/core/update  e. config/auth/create (her=system-users, kids)
-            |   f. Local Calendar / Local To-do / Google entry (credential create + reload; disable non-chosen entities)
-            |   g. family_hub config flow (features..finish)  h. family_hub/* commands + todo.add_item + calendar.create_event
-            |   i. lovelace dashboard create/save; resources read-back  j. login as her -> frontend/set_user_data(sidebar, core)
-            |   k. verify: notifyTargets allow-list, no media_player, entries allow-list, resources==served hash
-            v                                                              v
-   Google Calendar API (OAuth, read/write, tagged events "[DEV] ..." / "[PREVIEW] ...")   [D-07, D-11]
-            ^
-            |  Companion (Android) --HTTPS (user-installed CA)--> https://<reserved-ip>:8124  (her phone)
+ phone (Android, Companion)                         laptop (Windows 11, Wi-Fi, DHCP-reserved IP)
+   |  https://<reserved-ip>:8124                      |
+   v                                                  v
+ router --------------------------> Windows host: Hyper-V firewall rule (TCP 8124, WSL creator GUID)
+                                      |  WSL2 mirrored networking (VM shares the host IP)
+                                      v
+              +-------------------- WSL2 Ubuntu (systemd, dockerd, repo on ext4: ~/HA-Family-Hub) ----------------+
+              |  versions.env + dev/host.env (gitignored: TZ, country, currency, units, lat/long, PREVIEW_HOST_IP)  |
+              |                                                                                                       |
+              |  scripts/dev-up | dev-reset | deploy-preview <branch> | reset-preview | refresh-preview | doctor      |
+              |     (1) .ics backup of every connected Google calendar  -> dev/.ha-backups/<date>/ (hard stop)       |
+              |     (2) compose down; wipe volume via helper container (keep custom_components/)                     |
+              |     (3) write .storage/core.config_entries with ONLY the preserved Google entry (if any)             |
+              |     (4) deploy: git archive <branch> -> stamp substitution -> replace custom_components/family_hub   |
+              |     (5) compose up -d; poll host-side until state RUNNING                                            |
+              |                                                                                                       |
+              |   DEV  127.0.0.1:8130 (working copy :ro)        PREVIEW  0.0.0.0:8124 (exported copy)               |
+              |        ^                                              ^                                              |
+              |        +----- tools/seed (aiohttp, https://127.0.0.1:<port>, --target dev|preview allow-list) ------+|
+              |   a. RUNNING  b. onboard (4 steps)  c. http/config/promote  d. delete outbound onboarding entries    |
+              |   e. config/core/update (host.env)  f. users (stable creds)  g. local calendars/todos + Google entry |
+              |   h. Family Hub config flow  i. family_hub/* data + todo.add_item + tagged events (diff sync)        |
+              |   j. dashboard + resources read-back  k. her sidebar/default  l. verify (isolation, hash, name)       |
+              +----------------------------------------------------------------------------------------------------+
+                         |                                                    ^
+                         v                                                    |
+              Google Calendar API (read/write, tagged "[DEV] ..."/"[PREVIEW] ...")      Windows Task Scheduler:
+                                                                                         keep-alive (wsl.exe -e sleep infinity),
+                                                                                         refresh at logon + daily
 ```
 
 ### Recommended Project Structure
 ```
 dev/
-├── compose.yaml                # base: image ghcr.io/home-assistant/home-assistant:${HA_VERSION:?}, TZ, PYTHONDONTWRITEBYTECODE=1, stop_grace_period: 60s
-├── compose.dev.yaml            # 127.0.0.1:8130:8123, mounts custom_components/family_hub :ro
-├── compose.preview.yaml        # ${PREVIEW_BIND:-0.0.0.0}:8124:8123, restart: unless-stopped, no source bind-mount
-├── config-template/configuration.yaml   # rendered per env (name, time zone, http ssl block, my:, mobile_app:, frontend, lovelace, config)
-├── host.env.example            # committed; copy to dev/host.env (gitignored): TZ, PREVIEW_HOST_IP, ports, paths to secrets
-├── .ha-dev/ .ha-preview/       # HA volumes (gitignored by existing `dev/.ha-*`)
-├── .ha-certs/ .ha-secrets/ .ha-backups/   # CA/leaf (0600 keys), preserved Google entry (0600), dated .ics backups (all matched by `dev/.ha-*`)
+├── compose.yaml                 # base: image ghcr.io/home-assistant/home-assistant:${HA_VERSION:?}, TZ, PYTHONDONTWRITEBYTECODE=1, stop_grace_period: 60s
+├── compose.dev.yaml             # 127.0.0.1:8130:8123, ../custom_components/family_hub:/config/custom_components/family_hub:ro
+├── compose.preview.yaml         # ${PREVIEW_BIND:-0.0.0.0}:8124:8123, restart: unless-stopped, no source bind-mount
+├── config-template/configuration.yaml
+├── host.env.example             # committed; copy to dev/host.env (gitignored; add `dev/host.env` to .gitignore)
+└── .ha-dev/ .ha-preview/ .ha-certs/ .ha-secrets/ .ha-backups/     # all covered by the existing `dev/.ha-*` ignore
 tools/seed/
-├── client.py                   # REST + WS wrapper, ssl context from CA file, target allow-list (dev|preview only)
-├── onboard.py  users.py  entries.py  family_hub.py  google.py  calendar_tags.py  dashboard.py  verify.py
-├── cli.py                      # seed / refresh / verify / google-signin / backup-calendars, with --dry-run
-├── data/family.example.yaml    # invented family, same schema as the local file (default provider: local calendars)
-└── family.local.yaml           # gitignored (add `tools/seed/*.local.*` to .gitignore)
-scripts/                        # thin wrappers only: dev-up dev-reset deploy-preview reset-preview refresh-preview make-certs check-preview
-docs/family/                    # getting-started.md + img/ (screenshots taken from seeded Dev/Preview)
+├── client.py  onboard.py  users.py  entries.py  family_hub.py  google.py  calendar_tags.py  dashboard.py  verify.py  cli.py
+├── data/family.example.yaml     # invented family, same schema as the local file
+├── tests/                       # pure-function tests for calendar_tags + one live test against Local Calendar
+└── family.local.yaml            # gitignored (add `tools/seed/*.local.*`)
+scripts/                         # thin bash wrappers: dev-up dev-reset deploy-preview reset-preview refresh-preview make-certs doctor preview-down
+docs/family/                     # getting-started.md + img/
+.gitattributes                   # NEW: `*.sh text eol=lf`, `scripts/* text eol=lf`, `*.yaml text eol=lf` (Pitfall 8)
 ```
 
+Suggested plan slicing for the planner (waves): (1) wording changes to ROADMAP/PROJECT/REQUIREMENTS per D-03/D-07/D-28, `.gitignore`/`.gitattributes`, `host.env.example`, `scripts/doctor`; (2) certs + compose + `dev-up` (DEV-01/02); (3) seed core: onboard, users, entries, Family Hub flow and data, dashboard, sidebar, verify; (4) Google: credential create, entry preservation, calendar disable set, backups, tagged-event sync with dry-run and tests; (5) `deploy-preview` / `reset-preview` / `refresh-preview`; (6) card changes (stamp, delete warning) in `card/family-week-calendar-card.js`; (7) human-verify checkpoint on the laptop (WSL host layer, Pitfalls 4-6); (8) Google Cloud project checkpoint; (9) guide + screenshots; (10) her phone checkpoint and ACCESS-05.
+
 ### Pattern 1: Compose base + per-environment overlay
-**What:** One base file; overlays add mounts, port and restart policy. Both environments use the same image tag from `versions.env`. Bridge networking, no `privileged`, no `/run/dbus`, no `network_mode: host`.
-**When to use:** Always (same as ARCHITECTURE.md; confirmed by HA docs that the stock snippet's host network/privileged are not required for this use).
-**Example:**
+**What:** One base file; overlays add mounts, port and restart policy; bridge networking, no `privileged`, no `network_mode: host`.
+**Verified this session:** the planned files rendered correctly with `docker compose -p familyhub-preview --env-file versions.env --env-file host.env -f compose.yaml -f compose.preview.yaml config`; the unused keys in `versions.env` (`PYTHON_VERSION`, `PYTEST_HACC_VERSION`) are tolerated (resolved old A13). Relative paths in overlays resolve against the first `-f` file's directory.
 ```yaml
 # dev/compose.yaml (sketch)
 services:
   ha:
     image: ghcr.io/home-assistant/home-assistant:${HA_VERSION:?set in versions.env}
     environment: { TZ: "${TZ:?}", PYTHONDONTWRITEBYTECODE: "1" }
-    stop_grace_period: 60s          # [CITED: home-assistant.io/installation/linux compose example]
+    stop_grace_period: 60s
     volumes:
       - ${HA_CONFIG_DIR:?}:/config
-      - ./.ha-certs:/ssl:ro         # fullchain.pem + privkey.pem referenced by the http: block
+      - ./.ha-certs:/ssl:ro
 # dev/compose.preview.yaml
 services:
   ha:
-    restart: unless-stopped         # [CITED: docs.docker.com start-containers-automatically]
+    restart: unless-stopped
     ports: ["${PREVIEW_BIND:-0.0.0.0}:8124:8123"]
 # dev/compose.dev.yaml
 services:
@@ -272,169 +297,191 @@ services:
     ports: ["127.0.0.1:8130:8123"]
     volumes: ["../custom_components/family_hub:/config/custom_components/family_hub:ro"]
 ```
-Start with `docker compose -p familyhub-preview --env-file versions.env --env-file dev/host.env -f dev/compose.yaml -f dev/compose.preview.yaml up -d`. (`versions.env` uses plain `KEY=VALUE` with `#` comments, which Compose env files accept; unused keys are ignored.) [ASSUMED: Compose env-file tolerance of the unused `PYTHON_VERSION`/`PYTEST_HACC_VERSION` keys; test once.]
+Start with `docker compose -p familyhub-preview --env-file versions.env --env-file dev/host.env -f dev/compose.yaml -f dev/compose.preview.yaml up -d`. Dev uses project `familyhub-dev` and `dev/compose.dev.yaml`.
 
 ### Pattern 2: Minimal `configuration.yaml` (not `default_config:`)
-**What:** `DEFAULT_INTEGRATIONS` already contains `application_credentials`, `backup`, `frontend`, `person`, `zone` etc. [VERIFIED: homeassistant/bootstrap.py:215-252]. `default_config` adds `bluetooth, cloud, dhcp, ssdp, usb, zeroconf, go2rtc, stream, assist_pipeline, conversation, homeassistant_alerts` and others [VERIFIED: default_config/manifest.json] that should not run in an isolated Preview. Add only what is needed.
-**Must include `my:`** or Google OAuth cannot use the `my.home-assistant.io` redirect: `async_get_redirect_uri` returns `https://my.home-assistant.io/redirect/oauth` only `if "my" in hass.config.components` [VERIFIED: helpers/config_entry_oauth2_flow.py:131-135]. Otherwise it builds `<frontend base>/auth/external/callback`, which Google will not accept for a private IP.
-**Example:**
+`default_config` pulls `bluetooth, cloud, dhcp, ssdp, usb, zeroconf, go2rtc, stream, assist_pipeline, conversation, homeassistant_alerts` and more (read from `default_config/manifest.json` this session) which do not belong in an isolated Preview. Use:
 ```yaml
 homeassistant:
-  name: "Family Hub PREVIEW"      # also set/asserted via WS config/core/update (verified)
-  time_zone: Europe/London        # from host.env; must equal Home's later
-http:
-  ssl_certificate: /ssl/fullchain.pem
-  ssl_key: /ssl/privkey.pem
+  name: "Family Hub PREVIEW"          # Dev: "Family Hub DEV"; also asserted via config/core/update
 frontend:
 lovelace:
 config:
-my:
-mobile_app:                       # needed by the Companion app  [ASSUMED: not exercised in the spike; PyNaCl installs at first start]
+my:                                   # REQUIRED for the Google OAuth redirect (see below)
+mobile_app:                           # verified this session: 201 registration; deps are http, intent, person, tag, webhook, websocket_api (cloud is only after_dependencies)
+http:
+  ssl_certificate: /ssl/fullchain.pem
+  ssl_key: /ssl/privkey.pem
 ```
-The `http:` block is imported **once** into `.storage/http` as *pending* and the seed must promote it (Pitfall 1).
+Core values (time zone, country, currency, units, lat/long, elevation, language, internal_url) come from `dev/host.env` (D-31) and are applied through WS `config/core/update` (accepted keys re-read today: `country, currency, elevation, external_url, internal_url, language, latitude, location_name, longitude, radius, time_zone, update_units, unit_system`). Do not put `server_port` in the `http:` block: the container maps the port and any `http:` YAML becomes a pending config (Pitfall 1). `my:` is needed because the OAuth redirect resolves to `https://my.home-assistant.io/redirect/oauth` only when `my` is loaded (`helpers/config_entry_oauth2_flow.py`, read 2026-10-28).
 
-### Pattern 3: API-driven seed, in this order (all steps executed against HA 2026.10.4)
-1. **Wait for RUNNING** (not `/api/onboarding`; Pitfall 2).
-2. **Onboard** a pristine volume: `POST /api/onboarding/users` with `{client_id, name, username, password, language}` -> `auth_code`; `POST /auth/token` (authorization_code, `client_id` equal); then `POST /api/onboarding/core_config` `{}`, `POST /api/onboarding/analytics` `{}`, `POST /api/onboarding/integration` `{client_id, redirect_uri}` (redirect must start with `client_id`). All four steps must be done or `/api/onboarding` still lists them. [VERIFIED: ran; `onboarding/const.py` `STEPS = [STEP_USER, STEP_CORE_CONFIG, STEP_ANALYTICS, STEP_INTEGRATION]`]
-3. **`http/config/promote`** (admin WS) within 5 minutes of start. [VERIFIED]
-4. **Remove unwanted onboarding side effects**: finishing `core_config` auto-starts config flows for `google_translate`, `met`, `radio_browser`, `shopping_list` [VERIFIED: onboarding/views.py `onboard_integrations`]. Delete `radio_browser` and `google_translate` entries (outbound services) via `DELETE /api/config/config_entries/entry/<id>`; `shopping_list` is harmless.
-5. **Core config**: WS `config/core/update` `{location_name: "Family Hub PREVIEW", ...}`; `hass.config.location_name` then equals it. [VERIFIED]
-6. **Users**: WS `config/auth/create` `{name, group_ids: ["system-users"], local_only: false}` then `config/auth_provider/homeassistant/create` `{user_id, username, password}`. Admin is the onboarding user. [VERIFIED]
-7. **Local Calendar / Local To-do** via `POST /api/config/config_entries/flow` `{handler: "local_calendar"}` then step data `{calendar_name, import: "create_empty"}`; `{handler: "local_todo"}` then `{todo_list_name}`. Entity ids are the slug of the name (`Meal Plan` -> `todo.meal_plan`). Create **all five** lists the cards ask for: `todo.recipe_box`, `todo.meal_plan`, `todo.meal_plan_templates`, `todo.meal_suggestions`, `todo.family_reminders`; the headless run logged `Referenced entities todo.meal_plan_templates ... missing` and `todo.meal_suggestions ... missing` when they were absent. [VERIFIED]
-8. **Google entry** (Pattern 5) or Local Calendars when no Google file exists.
-9. **Family Hub config flow** (below).
-10. **Family Hub data** via commands (below), meals via `todo.add_item`, events via `calendar.create_event`.
-11. **Dashboard** (Pattern 4), then **her sidebar/default** (Pattern 7), then **verify** (Pattern 8).
+### Pattern 3: API-driven seed, in this order (executed against HA 2026.10.4)
+1. **Wait for RUNNING** with a host-side probe: login, `GET /api/config` or WS `get_config`, require `state == "RUNNING"`. Do not poll `/api/onboarding` (it returns the finished-steps list or 404 once onboarded; this session it returned `[{"step":"user","done":true},...]`, so it never signals readiness). Calling too early gave `state NOT_RUNNING` and a 404 on `/api/mobile_app/registrations` this session.
+2. **Onboard** a pristine volume: `POST /api/onboarding/users` `{client_id, name, username, password, language}` -> `auth_code`; `POST /auth/token`; then `core_config`, `analytics` (`{}`), `integration` (`{client_id, redirect_uri}` with the redirect starting with `client_id`). All four steps return 200 (re-run this session).
+3. **`http/config/promote`** (admin WS) within 5 minutes of start; assert `active_config_type == "stable"` and `revert_at == null`.
+4. **Delete unwanted onboarding side effects:** finishing `core_config` auto-adds `shopping_list`, `radio_browser`, `google_translate` (this session's entries list: `shopping_list, radio_browser, google_translate, analytics, backup, mobile_app`). Delete `radio_browser` and `google_translate` (outbound) via `DELETE /api/config/config_entries/entry/<id>`; `met` appears when location is set, delete it too.
+5. **Core config** from `host.env` via `config/core/update`; set `location_name` to the environment name.
+6. **Users:** WS `config/auth/create` `{name, group_ids: ["system-users"], local_only: false}` then `config/auth_provider/homeassistant/create` `{user_id, username, password}`. Admin = the onboarding user. **Credentials are generated once per environment into `dev/.ha-secrets/credentials-<env>.json` (0600) and reused on every reset**, so her re-login after a reset (D-27) uses the same username and password.
+7. **Local To-do (five lists) and, when no Google file exists, Local Calendars** via `POST /api/config/config_entries/flow` `{handler: "local_todo"}` / `{handler: "local_calendar"}`. Create **all five** lists the cards ask for: `todo.recipe_box`, `todo.meal_plan`, `todo.meal_plan_templates`, `todo.meal_suggestions`, `todo.family_reminders`.
+8. **Google entry** (Pattern 5).
+9. **Family Hub config flow** (below), answering `add_dashboard: false`.
+10. **Family Hub data** via commands, meals via `todo.add_item`, events via `calendar.create_event`.
+11. **Theme (D-29):** `family_hub/get_settings`, set `globalThemeId` to `midnight` (and keep `useGlobalTheme` true), `family_hub/set_settings` (full replace: always GET, modify, SET). `__init__.py:405` has `_theme(` with `"midnight", "Midnight",` as its first two arguments; the default written at install is `DEFAULT_GLOBAL_THEME_ID = "slate"` (`__init__.py:1571`) and the card default `useGlobalTheme: true` (`card/family-week-calendar-card.js:9378`). **Dev should use a different theme than both** (suggest `blossom`, rendering verified in the 2026-10-28 spike) so Dev, Preview and Home are visually distinct.
+12. **Dashboard** (Pattern 4), **her sidebar/default** (Pattern 7), **verify** (Pattern 8).
 
-**Family Hub config flow, verbatim values** (`config_flow.py` read this session):
-- `_FEATURES_FIELD = "setup_features"` (:158), options `_FEATURE_CHORES = "chores"`, `_FEATURE_GROCY = "grocy"`, `_FEATURE_DIGEST = "digest"` (:148-150). Pick only `["chores"]` to skip the Grocy and Digest steps (Grocy off, D-14).
-- Users step field `CONF_INITIAL_MEMBER_USER_IDS = "initial_member_user_ids"` (const.py:843).
-- Member profile (one form **per member**, loop): `_MEMBER_COLOR_FIELD = "member_color"` (:234), `_MEMBER_INCLUDE_FIELD = "member_include_in_chores"` (:235), `_MEMBER_CALENDAR_FIELD = "member_calendar"` (:238); colors come from `_PEOPLE_COLOR_PALETTE = ["#d9bf7e", "#7ec9d9", "#d97e9e", "#9ed97e", "#b07ed9", "#d9a67e"]` (:343).
-- Chores features: `_ROUTINES_FIELD = "routines_enabled"`, `_GOALS_IN_CHORES_FIELD = "goals_in_chores"`, `_GOALS_IN_REWARDS_FIELD = "goals_in_rewards"` (:272-274).
-- Calendars step field `CONF_CALENDARS = "calendars"` (const.py:86); notifications field `CONF_DEFAULT_NOTIFY = "default_notify_target"` (const.py:87); dashboard step `_ADD_DASHBOARD_FIELD = "add_dashboard"` (:339, answer `false`: the seed creates the dashboard itself); finish step takes `{}`.
-- Executed sequence (all `type: form` until the last): `features` -> `users` -> `member_profile` x N -> `chores_features` -> `calendars` -> `notifications` -> `dashboard` -> `finish` -> `create_entry`.
+**Family Hub config flow, verbatim values** (re-verified by grep this session): `_FEATURES_FIELD = "setup_features"` (`config_flow.py:158`), `_FEATURE_CHORES = "chores"` (:148); pick only `["chores"]` to skip Grocy and Digest steps. `CONF_INITIAL_MEMBER_USER_IDS = "initial_member_user_ids"` (`const.py:843`). Member profile (one form per member, loop): `_MEMBER_COLOR_FIELD = "member_color"` (:234), `_MEMBER_INCLUDE_FIELD = "member_include_in_chores"` (:235), `_MEMBER_CALENDAR_FIELD = "member_calendar"` (:238). Chores features: `_ROUTINES_FIELD = "routines_enabled"`, `_GOALS_IN_CHORES_FIELD = "goals_in_chores"`, `_GOALS_IN_REWARDS_FIELD = "goals_in_rewards"` (:272-274). `CONF_CALENDARS = "calendars"` (`const.py:86`), `CONF_DEFAULT_NOTIFY = "default_notify_target"` (`const.py:87`), `_ADD_DASHBOARD_FIELD = "add_dashboard"` (:339), finish step takes `{}`. Executed sequence (2026-10-28): `features` -> `users` -> `member_profile` x N -> `chores_features` -> `calendars` -> `notifications` -> `dashboard` -> `finish` -> `create_entry`.
 
-**Family Hub commands the seed uses (admin token; verified OK):** `family_hub/chores/create` (`title`, `assigned_to`, `star_value`, `due_date` ISO with offset), `family_hub/rewards/add_catalog_item` (`title`, `cost_stars`, `icon`), `family_hub/rewards/adjust_balance` (`user_id`, `delta`, `reason`), `family_hub/goals/create` (`title`, `assigned_to`, `target_count`, `reward_type: "stars"`, `star_value`), `family_hub/routines/create` (`user_id`, `category: "morning"`, `title`, `due_time`, `star_value`), `family_hub/kiosk/set_pin` (`user_id`, `pin` 4-8 digits, admin only), `family_hub/get_settings` + `family_hub/set_settings` (full replace: always GET, modify, SET), `family_hub/set_recipes`. For kid PIN sign-in to work, `settings["kioskLoginEnabledUserIds"]` must contain the kid id (chores_websocket_api.py:2148, :2205) and a PIN must be set; then any authenticated connection can `family_hub/kiosk/elevate` (verified, and the elevation token then completes a kid's chore).
+**Family Hub commands the seed uses** (schemas re-read today in `chores_websocket_api.py`): `family_hub/chores/create` (`title` required; `assigned_to`, `star_value`, `due_date`, `recur_type`, ... optional; :904), `family_hub/rewards/add_catalog_item` (`title`, `cost_stars` required; `icon`, `color` optional; :1474), `family_hub/rewards/adjust_balance` (`user_id`, `delta` required; `reason` optional; :1663), `family_hub/goals/create` (`title`, `assigned_to` required; `target_count`, `reward_type`, `star_value` optional; :2595), `family_hub/routines/create` (`user_id`, `category`, `title` required; `due_time`, `days_of_week`, `star_value` optional; :2332), `family_hub/kiosk/set_pin` (`user_id` required, `pin` optional, admin-only; :2165), `family_hub/kiosk/elevate` (`user_id`, `pin`; :2190), `family_hub/get_settings` (`__init__.py:2519`), `family_hub/set_settings` (:2568), `family_hub/set_recipes` (:4099). For kid PIN sign-in, `settings["kioskLoginEnabledUserIds"]` must contain the kid id (`chores_websocket_api.py` `ws_kiosk_list_login_users` reads `settings.get("kioskLoginEnabledUserIds")`) and a PIN must be set.
 
 ### Pattern 4: Dashboard (storage mode) and resource verification
-`lovelace/dashboards/create` `{url_path: "family-hub", title, icon, show_in_sidebar: true, require_admin: false, mode: "storage"}` then `lovelace/config/save` `{url_path, config}` (admin). `lovelace/resources` lists the 13 `family_hub_*` resources the integration registered itself (log lines `Family Hub: registered /family_hub_card/... as a dashboard resource`); the seed asserts the count and the `?v=<hash>` equals the served file's hash, else creates the missing ones with `lovelace/resources/create` `{res_type: "module", url}`. [VERIFIED]
-Recommended layout (D-18): one **panel-type view per card** (the calendar card is documented as a single full-screen `panel` view): Calendar, Today, Chores, Rewards, To-dos, Recipes (and Pantry only if it renders sensibly with Grocy off, A8). Card YAML comes from `DOCUMENTATION.md` (Read this session): `type: custom:family-week-calendar-card` with `people: [{entity, name, color}]` plus `recipe_entity`, `meal_plan_entity`, `meal_templates_entity`, `suggestions_entity`, `reminders_entity`, `weather_entity`; `custom:family-hub-chores-card`, `-rewards-card`, `-goals-card` with optional `title`/`fab_position`; `custom:family-hub-todo-card` with `entities: [todo.*]`; `custom:family-hub-recipe-box-card`; `custom:family-today-card` with `people`, `meal_plan_entity`, `reminders_entity` (family-today-card.js:486-487).
+`lovelace/dashboards/create` `{url_path: "family-hub", title, icon, show_in_sidebar: true, require_admin: false, mode: "storage"}` then `lovelace/config/save` `{url_path, config}` (admin-only; `lovelace/websocket.py` `@websocket_api.require_admin` on `lovelace/config/save`). The integration's `_register_dashboard_resource` (`__init__.py:12190`) matches existing resources by base path and updates the URL in place when the hash changes (`async_update_item`, :12240-12241), so a restart refreshes the hash. The seed lists `lovelace/resources`, diffs against the served `*_CARD_JS_URL` constants (do not hard-code the count; 13 were registered in the 2026-10-28 run) and compares each `?v=` to `sha256(file)[:10]` (`_file_content_hash`, :12172-12187), creating missing ones with `lovelace/resources/create` `{res_type: "module", url}` and **updating, never duplicating** (two resource URLs for one card makes `customElements.define` throw; PITFALLS.md Pitfall 6).
+Layout (D-18): one **panel-type view per card**: Calendar, Today, Chores, Rewards, To-dos, Recipes. Card YAML from `DOCUMENTATION.md`: `custom:family-week-calendar-card` with `people`, `recipe_entity`, `meal_plan_entity`, `meal_templates_entity`, `suggestions_entity`, `reminders_entity`, `weather_entity`; `custom:family-hub-chores-card`, `-rewards-card`, `-goals-card`; `custom:family-hub-todo-card` with `entities`; `custom:family-hub-recipe-box-card`; `custom:family-today-card`. **Pantry:** the card is a Grocy stock list plus an "Also Tracking" notes list (`card/family-hub-pantry-card.js` header); with Grocy off, omit the Pantry view unless a Dev visual check shows the "Also Tracking" part is useful (D-18 says "Recipes/Pantry"; assumption A6).
 
 ### Pattern 5: Google Calendar in a non-production instance
-1. **Once per Google Cloud project (human):** Web-application OAuth client with redirect URI `https://my.home-assistant.io/redirect/oauth`; consent screen **published** ("Publish app"), otherwise "your credentials will expire every 7 days" [CITED: home-assistant.io/integrations/google]; Google's own rule: Testing status issues a refresh token that expires in 7 days [CITED: developers.google.com/identity/protocols/oauth2#expiration]. Calendar scopes are sensitive, so an unpublished-verification warning screen appears for a personal app; acceptable for one account.
-2. **After each fresh start (seed):** `application_credentials/create` `{domain: "google", client_id, client_secret, name}` from the gitignored local file; if a preserved entry exists it was already written pre-start, so `POST /api/config/config_entries/entry/<entry_id>/reload` and poll until `state == "loaded"`. [VERIFIED mechanics with a fake token]
-3. **Pre-start restore:** write `.storage/core.config_entries` as `{"version": 1, "minor_version": 5, "key": "core.config_entries", "data": {"entries": [<google entry only>]}}` into the empty volume (format taken from the live file written by this HA). Keep the entry's `entry_id`, `unique_id`, `data.auth_implementation`, `data.token`. The preserved copy is taken from the **stopped** instance's file (HA flushes on stop) into `dev/.ha-secrets/google-<env>.json` with mode 0600. If this file is absent, the seed stops with the documented one-time sign-in instruction (D-10 fallback).
-4. **Choose calendars:** the integration creates entities for **every** calendar on the account (`async_list_calendars` loop; unique_id `f"{config_entry.unique_id}-{entity_description.key}"` with `key = calendar_id` [VERIFIED: google/calendar.py:120-130, 239-246]), plus a Birthdays entity for the primary calendar (enabled) and a disabled Work Location one. The `track` YAML option is deprecated. So after the entry loads, list `config/entity_registry/list`, keep entities whose `unique_id` ends with a chosen `calendar_id`, and disable the rest with `config/entity_registry/update` `{entity_id, disabled_by: "user"}`. Include the primary account's Birthdays entity in the disable set unless chosen (it exposes family contacts' birthdays).
-5. **Read-only calendars** (accessRole not writer) get no CREATE/DELETE features automatically (`read_only = not (calendar_item.access_role.is_writer and ... read_write)`), a free guard.
-6. **Tagged events (D-11/D-15):** create with `calendar.create_event` (`summary`, `start_date_time`, `end_date_time`, optional `description`, `location`). Event summaries start with the env tag; the `description` carries a machine marker line, e.g. `family-hub-seed:preview`. **Delete only if both** the summary starts exactly with `[PREVIEW] ` (or `[DEV] `) **and** the description contains the marker for *that environment*, within a bounded date window, on allow-listed calendars. Find candidates with `GET /api/calendars/<entity>?start=&end=` (returns `uid`, `recurrence_id`) and delete with WS `calendar/event/delete` `{entity_id, uid, recurrence_id?}`. Default `--dry-run` prints what would be deleted; a test creates mixed tagged/untagged/other-env events on a Local Calendar in a pip-installed HA and asserts only the exact set is removed. Seeded events must be single (non-recurring) so deletion never needs `recurrence_range`.
-7. **Reminder side effect to confirm with the developer:** HA's Google `create_event` cannot set reminders (it builds `Event(summary, description, start, end[, location])` only [VERIFIED: google/calendar.py:459-498, 547-600]), so Google applies each *subscriber's default reminders*. Tagged events inside a reminder window can buzz family phones that subscribe to the calendar. D-11 accepts events "showing up on family phones"; a phone notification is a stronger effect (Open Question 2).
+1. **Once per Google Cloud project (human checkpoint, developer's own account, D-26):** create a **Web application** OAuth client, authorised redirect URI exactly `https://my.home-assistant.io/redirect/oauth`, and under Audience set Publishing status to **Publish app**; HA docs: "Otherwise, your credentials will expire every 7 days." [CITED: home-assistant.io/integrations/google, fetched 2026-11-02]. Google: a Testing-status external app "is issued a refresh token expiring in 7 days"; other expiry causes: unused for six months, and "a limit of 100 refresh tokens per Google Account per OAuth 2.0 client ID" (oldest silently revoked) [CITED: developers.google.com/identity/protocols/oauth2, fetched 2026-11-02]. Dev and Preview each hold their own token under the same client: 2 of 100. Google's page does not address the "In production but unverified, sensitive scope" case; that a published-unverified app keeps non-expiring tokens rests on HA's docs only (A9). The default requested scope is read/write: `FeatureAccess.read_write = "https://www.googleapis.com/auth/calendar"` and `DEFAULT_FEATURE_ACCESS = FeatureAccess.read_write` (`google/const.py:17-28`). An unverified-app warning screen appears at sign-in; acceptable for one account.
+2. **After each fresh start (seed):** `application_credentials/create` `{domain: "google", client_id, client_secret, name}` from the gitignored local file; if a preserved entry exists it was written pre-start, so `POST /api/config/config_entries/entry/<entry_id>/reload` and poll for `state == "loaded"`.
+3. **Pre-start restore:** write `.storage/core.config_entries` as `{"version": 1, "minor_version": 5, "key": "core.config_entries", "data": {"entries": [<google entry only>]}}` (version fields re-read from a live file this session). The entry copy is taken from the **stopped** instance (HA flushes on stop) into `dev/.ha-secrets/google-<env>.json` (0600). Absent file -> the seed stops with the documented one-time sign-in instruction (D-10 fallback).
+4. **Sign-in on a Windows laptop:** the browser doing the OAuth dance runs on **Windows**, and `my.home-assistant.io` redirects back to the instance URL saved in that browser. Use `https://localhost:<port>` (Dev) / the laptop address (Preview); the Windows browser must trust the CA (import `ca.crt` into the Windows "Trusted Root Certification Authorities" store) or the redirect shows a certificate warning. Switching between Dev and Preview means changing the saved instance URL at my.home-assistant.io (A8).
+5. **Choose calendars:** the integration creates entities for **every** calendar on the account (entity `unique_id` is `f"{config_entry.unique_id}-{entity_description.key}"` with `key = calendar_id` when one entity per calendar; `google/calendar.py` lines read 2026-10-28), plus Birthdays/Work Location entities. After the entry loads, list `config/entity_registry/list`, keep entities whose `unique_id` ends with a chosen `calendar_id` and disable the rest with `config/entity_registry/update` `{entity_id, disabled_by: "user"}`; include Birthdays in the disable set unless chosen. Read-only calendars get no create/delete (`read_only = not (calendar_item.access_role.is_writer and get_feature_access(config_entry) is FeatureAccess.read_write)`, `google/calendar.py:137-140`), a free guard. The entry option `calendar_access` (`CONF_CALENDAR_ACCESS`, `read_only`/`read_write`) exists if a Dev-only read-only mode is ever wanted; D-15 says Dev is read/write.
+6. **Tagged events (D-11/D-15/D-25) with week-anchored diff sync.** Each seeded event has a stable key derived from (environment, calendar, weekday-in-week, slot), embedded as a marker line in `description`, e.g. `family-hub-seed:preview:<key>`; summary starts exactly `[PREVIEW] ` (Dev: `[DEV] `). The refresh computes the desired set for "this week and next" (anchored to calendar weeks, so keys and dates are stable all week), reads existing tagged events, **creates only the missing, deletes only the stale** (past the window), and never re-creates an unchanged event. A naive "delete all tagged, re-create" daily refresh would create new events each morning on the real calendars and buzz family phones daily (the developer accepted buzz for seeding, D-25, not daily churn). Deletion requires **all** of: summary starts with the exact env tag, description contains the exact env marker, within a bounded date window, on an allow-listed calendar; seeded events are single (non-recurring) so `recurrence_range` is never needed. Candidates come from `GET /api/calendars/<entity>?start=&end=` (returns `uid`, `recurrence_id`); delete with WS `calendar/event/delete` `{entity_id, uid, recurrence_id?}`. `--dry-run` is the default for the tag cleaner. Test: a pure-function suite for `calendar_tags.matches()` (tagged, untagged, other-env, tag-in-the-middle, marker missing, out-of-window) plus one live run against a Local Calendar in a pip-installed HA asserting only the exact set is removed.
+7. **Reminders:** HA's Google `create_event` accepts `summary`, `description`, `location` and start/end only (read 2026-10-28, `google/calendar.py`), so each subscriber's default reminders apply; this is the D-25 accepted effect. The `[PREVIEW]` tag also makes seeded events self-explanatory on family phones.
 
 ### Pattern 6: Build stamp without touching `__init__.py`
-Add one constant block near the top of `card/family-week-calendar-card.js`, e.g. `const __FH_BUILD = { env: "__FH_BUILD_ENV__", version: "__FH_BUILD_VERSION__", deployed: "__FH_BUILD_TIME__" };`, render it as a small footer inside the existing `<ha-card>` template (card file ~14392) and emit one `console.info`. `deploy-preview` substitutes the three tokens **in the exported copy only** (so git stays clean), which also changes the file hash, so the integration's own `?v=<hash>` logic updates the Lovelace resource at the next start (`_register_dashboard_resource` calls `async_update_item` when the hash differs, __init__.py:12238-12244). In Dev the tokens stay literal and the card shows `Dev · live from working copy`. After deploy, fetch `https://<ip>:8124/family_hub_card/family-week-calendar-card.js?v=<hash>` with the CA, assert the short git hash is present, and assert the `lovelace/resources` url hash equals `sha256(file)[:10]` (`_file_content_hash`, __init__.py:12172-12187).
+Add a constant block near the top of `card/family-week-calendar-card.js`, e.g. `const __FH_BUILD = { env: "__FH_BUILD_ENV__", version: "__FH_BUILD_VERSION__", deployed: "__FH_BUILD_TIME__" };`, render it as a small footer inside the existing `<ha-card>` template (the single `</ha-card>` is at `card/family-week-calendar-card.js:16077`; the 2026-10-28 note citing ~14392 was stale) and emit one `console.info`. `deploy-preview` substitutes the three tokens **in the exported copy only**; that changes the file hash so the integration's `?v=` logic updates the resource at the next start. In Dev the tokens stay literal and the card shows `Dev · live`. After deploy fetch `https://127.0.0.1:8124/family_hub_card/family-week-calendar-card.js?v=<hash>` with the CA, assert the short git hash is present and the `lovelace/resources` hash equals `sha256(file)[:10]`.
+**D-09 mechanism (recommendation):** do not reuse the build stamp for the delete warning, because a Home release is unsubstituted too and would look like Dev. Use `hass.config.location_name`: the card shows the loud confirm only when the HA location name matches `/\b(PREVIEW|DEV)\b/` and `family_hub/calendar/delete_support` reports the Google platform. Names are set by the seed (D-17) and a Home name would not contain these words. Hook point: the existing confirm in `_wireEventInfoDeleteButton` (`window.confirm(` at `card/family-week-calendar-card.js:23685`, `type: "family_hub/calendar/delete_event"` at :23698). No backend or settings-schema change is needed (avoids the "new fields need defaults in both places" rule).
 
 ### Pattern 7: Her account, sidebar and default dashboard
-Log in with the seeder (login flow, not a long-lived token): `POST /auth/login_flow` `{client_id, handler: ["homeassistant", null], redirect_uri}`, `POST /auth/login_flow/<id>` `{client_id, username, password}`, then exchange the code. Using **her** token: `get_panels`, compute `hiddenPanels = [every url_path except "family-hub" (and the non-sidebar "profile", "notfound")]`, call `frontend/set_user_data` `{key: "sidebar", value: {panelOrder: [], hiddenPanels: [...]}}` and `{key: "core", value: {default_panel: "family-hub"}}`. The frontend reads `sidebar` `{panelOrder, hiddenPanels}` and `core.default_panel` [VERIFIED in hass_frontend 20260930.5 bundle]. On the spike her non-admin panel list was `calendar, climate, family-hub, home, light, lovelace, maintenance, map, media-browser, notfound, profile, security, theme-builder, todo`. The integration registers a **Theme Builder** sidebar panel with `require_admin=False` and `PANEL_URL = "theme-builder"` (const.py:939), so it shows to her unless hidden. The bell (Notifications) and her profile entry always remain; that is acceptable.
+Log in with the seeder (login flow, not a long-lived token): `POST /auth/login_flow` `{client_id, handler: ["homeassistant", null], redirect_uri}`, `POST /auth/login_flow/<id>` `{client_id, username, password}`, exchange the code (re-ran this session). With **her** token: `get_panels`, compute `hiddenPanels` = every key except `family-hub` (plus non-sidebar `profile`, `notfound`) and call `frontend/set_user_data` `{key: "sidebar", value: {panelOrder: [], hiddenPanels: [...]}}` and `{key: "core", value: {default_panel: "family-hub"}}`. The integration registers a Theme Builder panel with `PANEL_URL = "theme-builder"` (`const.py:939`), which a non-admin sees unless hidden. The bell and her profile entry always remain. Compute the list per run, never hard-code (panel ids depend on loaded integrations; this session's admin panel list was `_my_redirect, climate, config, home, light, lovelace, maintenance, map, media-browser, notfound, profile, security`).
 
 ### Pattern 8: Isolation and safety verification (run by deploy/reset/refresh)
-Assert, as admin: (a) every `userProfiles[*].notifyTargets` is empty or exactly `["notify.persistent_notification"]`; (b) the settings key `SETTINGS_KEY_ALARM_DEVICES = "alarmDevices"` (const.py:724) is empty/absent and no `media_player`/`assist_satellite` entity exists (timer alarms only reach speakers listed there, const.py:720-724); (c) config-entry domains are within an allow-list (`family_hub`, `local_calendar`, `local_todo`, `google`, `mobile_app`, HA built-ins such as `analytics`, `backup`, `sun`, `shopping_list`); (d) Grocy URL/key blank; (e) `location_name` matches the target (`Family Hub PREVIEW` / `Family Hub DEV`) **before** sending any credentials to the target and refuse otherwise (code-level guard behind "never test on Home"). Notification fan-out is opt-in everywhere: profile flags `notifyRewardClaimed`, `notifyChoreApproved`, `notifyChoreRejected`, `notifyChoreDue`, `notifyGoalApproved`, `notifyGoalRejected`, `notifyTimerAlarm` "All six default False" (const.py:1149-1151) and `notifyTargets` defaults to `[]`; a fresh install's `get_settings` returned `userProfiles` with `notifyTargets: []`. The only auto-discovery (`_detect_user_notify_targets`, __init__.py:1970-2000) runs in the one-time `_migrate_notify_profiles` at entry creation and on the card's "Auto-detect" button. So the real risks are the Auto-detect button and creating the Family Hub entry **after** a Companion device registered; the seed explicitly writes the safe value and the check enforces it. [VERIFIED by reading and by running: after the flow, the HA log said it "could not automatically match" `notify.persistent_notification` and wrote 4 profiles]
+Assert, as admin: (a) every `userProfiles[*].notifyTargets` is empty or exactly `["notify.persistent_notification"]`; (b) settings key `SETTINGS_KEY_ALARM_DEVICES = "alarmDevices"` (`const.py:724`) is empty/absent and no `media_player`/`assist_satellite` entity exists; (c) config-entry domains are within an allow-list (`family_hub`, `local_calendar`, `local_todo`, `google`, `mobile_app`, `analytics`, `backup`, `sun`, `shopping_list`); (d) Grocy URL/key blank; (e) `location_name` matches the target **before** any credentials are sent and refuse otherwise. Notification fan-out is opt-in per profile flag and `notifyTargets` defaults to `[]`; the only auto-discovery is `_detect_user_notify_targets` (`__init__.py:1970`) called by `_migrate_notify_profiles` (:2003) at entry creation and by the card's Auto-detect button. The real risks are that button and creating the Family Hub entry **after** a Companion device registered, so the seed writes the safe value and the check enforces it. Adding Preview as a second server on her phone creates a `mobile_app` device on Preview (registration verified this session), so (a) must be re-asserted on every refresh.
 
 ### Anti-Patterns to Avoid
-- **Polling `/api/onboarding` for readiness** after onboarding: it returns `404 Not Found` once all steps are done [VERIFIED]; ARCHITECTURE.md's healthcheck sketch is wrong post-onboarding.
-- **Putting `http:` SSL in YAML and forgetting `http/config/promote`**: HTTPS disappears 5 minutes later (Pitfall 1).
+- **Polling `/api/onboarding` for readiness.**
+- **Putting any `http:` YAML in and forgetting `http/config/promote`.**
 - **Writing `.storage` of a running HA**, or hand-writing more than the single Google entry before first start.
-- **Deleting by summary prefix alone** on Google calendars (D-11): require the second marker and the env tag.
-- **Copying Home's config** or reusing `core.uuid` (D-06a, PITFALLS 1).
-- **`default_config:`** in Preview: pulls discovery, cloud and outbound integrations.
-- **Hard-coding the sidebar hide list**: the panel list depends on loaded integrations; compute it from her `get_panels`.
+- **Deleting by summary prefix alone** on Google calendars.
+- **"Delete all tagged, re-create all" refresh** on real calendars (daily buzz).
+- **Copying Home's config** or reusing its `core.uuid`.
+- **`default_config:`** in Preview.
+- **Keeping the repo or `dev/.ha-*` under `/mnt/c`** (permissions, speed, root-owned files).
+- **Seeding via the LAN IP from inside WSL** (hairpin to the host's own LAN address is unreliable in mirrored mode; use `127.0.0.1`).
+- **Hard-coding the sidebar hide list.**
+
+## Host layer: Windows 11 + WSL2 + Docker Engine (new, D-23/D-24)
+
+**One-time setup the guide for the developer must cover** (all are `[ASSUMED]` or `[CITED]` as marked; none could be tested here):
+
+1. **Windows 11 22H2+ and WSL from the Store with systemd.** Mirrored mode needs 22H2+ [CITED: learn.microsoft.com/windows/wsl/networking]. `/etc/wsl.conf`: `[boot]` `systemd=true` [CITED: wsl-config]. Install Docker Engine in the distro (Docker's Ubuntu instructions), `sudo systemctl enable --now docker`, add the user to the `docker` group.
+2. **`%UserProfile%\.wslconfig`:** `[wsl2]` `networkingMode=mirrored`; `firewall` defaults to `true` [CITED: wsl-config]. Run `wsl --shutdown` afterwards ("8 second rule", [CITED]). `[experimental]` `hostAddressLoopback=true` is the documented lever when Windows cannot reach container ports via the host's own addresses (issue #10494: Microsoft recommended it and a reporter confirmed it). The default kernel modules include `tun`, `ip_tables`, `br_netfilter` (`loadDefaultKernelModules` default true), which Docker bridge networking needs [CITED: wsl-config].
+3. **Hyper-V firewall rule (replaces D-23's "Windows Firewall rule"):** on Windows 11 22H2+ with WSL 2.0.9+ the Hyper-V firewall is on by default, and Microsoft's mirrored-mode note gives the commands, run in an elevated PowerShell [VERIFIED: learn.microsoft.com/windows/wsl/networking, fetched 2026-11-02, quoted verbatim]:
+   `New-NetFirewallHyperVRule -Name "MyWebServer" -DisplayName "My Web Server" -Direction Inbound -VMCreatorId '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -Protocol TCP -LocalPorts 80`
+   Use `-Name "FamilyHubPreview" ... -LocalPorts 8124` (Dev stays loopback-only, no rule). The broader `Set-NetFirewallHyperVVMSetting -Name '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -DefaultInboundAction Allow` opens every WSL port to the LAN and is not recommended. Whether an additional Windows Defender inbound rule is also needed is `[ASSUMED: A3]`; the checkpoint tests from her phone. Also check the Wi-Fi network profile is **Private** (A3).
+4. **Port space is shared in mirrored mode.** Windows must not already use 8124/8130, and Windows can reserve port ranges: `netsh interface ipv4 show excludedportrange protocol=tcp` (`doctor` check, `[ASSUMED]` as a likely failure source).
+5. **Keep WSL alive and start it at login.** WSL stops the distro when idle: `[general] instanceIdleTimeout` defaults to 15000 ms and `[wsl2] vmIdleTimeout` to 60000 ms [CITED: wsl-config]. A systemd service does **not** keep it up: issue #13416 (open, reproduced on 2.4.13, 2.5.10, 2.6.1 and 2.7.3; August 2026) says only a Windows-side process works, e.g. a Scheduled Task running `wsl.exe -d Ubuntu -e sleep infinity` [CITED: github.com/microsoft/wsl/issues/13416]; setting `vmIdleTimeout` to `-1` had no effect there. Plan: Task Scheduler task "FamilyHub WSL keep-alive", trigger At log on of the developer, action `wsl.exe -d <distro> -e sleep infinity`. Containers then start by themselves (`restart: unless-stopped`) once dockerd is up. Consequence for D-03: Preview is available only while the developer's Windows user is **logged in** and the laptop is awake (or the task is configured to run whether logged on or not, which needs a stored password; leave to the developer). Windows power settings: "sleep: never" when plugged in is optional but recommended on agreed try-out days (`powercfg`, `[ASSUMED]`).
+6. **Scheduler for D-28:** two more Scheduled Tasks calling `wsl.exe -d <distro> -e bash -lc '<repo>/scripts/refresh-preview'`: at log on (delay about 2 minutes so Docker and HA are up) and daily at a fixed time, with "run as soon as possible after a scheduled start is missed" `[ASSUMED: Task Scheduler setting]`. `refresh-preview` must itself wait for HA RUNNING and exit non-zero loudly otherwise.
+7. **Wi-Fi random hardware addresses (D-24):** Windows 11 has a per-network "Random hardware addresses" setting (Settings > Network & internet > Wi-Fi > <network> > Properties) and a global one; set the home network to Off before creating the router DHCP reservation, then confirm the reservation is listed under the adapter's real MAC [CITED: third-party guides, e.g. elevenforum.com; no Microsoft page retrieved; `[ASSUMED]` for the reservation interplay].
+8. **Clock:** WSL's clock has long drifted after Windows sleep/resume (issues since 2019; fixes are a resume-triggered `hwclock -s`/NTP resync) [CITED: github.com/microsoft/WSL/issues/8204, /4149 via search]. `doctor` compares `date -u` in WSL with `powershell.exe -c "(Get-Date).ToUniversalTime()"`. Clock skew matters for TLS validity and Google token refresh. `[wsl.conf] [time] useWindowsTimezone` is true by default; `TZ` still comes from `host.env`.
+9. **Repo location and line endings:** keep the repo and `dev/.ha-*` on WSL ext4 (e.g. `~/HA-Family-Hub`). `chmod 0600` secrets only work reliably there: DrvFs permission masks "only apply when the Windows drive is mounted with metadata. By default metadata is not enabled" [CITED: wsl-config]. `doctor` refuses to run from `/mnt/*`. Add `.gitattributes` forcing LF for scripts and YAML so a Windows-side clone cannot produce `bash\r` failures (the repo has no `.gitattributes` today).
+10. **Windows trust store:** import `ca.crt` into Windows so the developer's Windows browser can use `https://localhost:8130/8124` (needed for Google sign-in, Pattern 5.4).
+11. **Localhost from Windows:** Dev is published as `127.0.0.1:8130`. In mirrored mode a Windows browser reaching `localhost` published container ports has needed `127.0.0.1` rather than `localhost` or `hostAddressLoopback=true` in reports (issue #10494, `[CITED]`); the checkpoint confirms.
+
+**Fallback ladder if the phone cannot reach `https://<ip>:8124`** (the checkpoint decides, in this order): (1) re-check Hyper-V rule, profile, excluded port ranges, `wsl --version`; (2) `hostAddressLoopback=true`; (3) move off a regressed WSL build (see Pitfall 4); (4) switch `networkingMode` back to NAT and add a boot-time `netsh interface portproxy add v4tov4 listenport=8124 listenaddress=0.0.0.0 connectport=8124 connectaddress=<wsl hostname -I>` refreshed at every WSL start (documented by Microsoft for NAT, [CITED: networking]; the WSL VM address changes between starts, so this needs a script); (5) only as a last resort and an explicit decision, `network_mode: host` for Preview (departs from PREV-01's bridge rule).
+
+**`scripts/doctor` checks (D-23):** `wsl.exe --version` (record it), `networkingMode` in `.wslconfig` (read via `cmd.exe /c type %UserProfile%\.wslconfig`), Engine not Desktop (`docker version` server platform / no `docker-desktop` distro), `docker compose version`, repo path not under `/mnt`, `dev/host.env` present and 0600 secrets, clock delta, ports free (`ss -ltn`) and not excluded, `PREVIEW_HOST_IP` equals the Windows Wi-Fi IPv4 (`powershell.exe Get-NetIPAddress`), cert SAN contains `PREVIEW_HOST_IP`, Hyper-V rule present (`Get-NetFirewallHyperVRule -Name FamilyHubPreview`, needs elevation, otherwise print the command), scheduled tasks present (`schtasks.exe /query`).
 
 ## Don't Hand-Roll
 
 | Problem | Don't Build | Use Instead | Why |
 |---------|-------------|-------------|-----|
-| Creating users, entries, dashboards, entity-registry changes | Direct `.storage` edits | HA public REST/WS (verified list above) | `.storage` formats are internal and flushed on stop |
+| Creating users, entries, dashboards, entity-registry changes | Direct `.storage` edits | HA public REST/WS (verified list) | `.storage` formats are internal and flushed on stop |
 | OAuth token exchange for Google | Own OAuth client | HA's Google integration + `application_credentials` | HA refreshes tokens, stores them, handles reauth |
-| Reading/deleting Google events | Raw Google API calls from the seed | `calendar.create_event`, `GET /api/calendars/...`, WS `calendar/event/delete` | Same surface as Local Calendar, so it is unit-testable; HA already carries the token |
-| Certificate chain for LAN HTTPS | Self-signed leaf trusted directly | Name-constrained CA + leaf with IP SAN (script below) | A leaf-only cert cannot be revoked/rotated easily and Android wants a CA import; the CA key is bounded to private ranges |
-| Dashboard resource registration | Custom JS resource injection | The integration's own `_register_dashboard_resource` (works on 2026.10.4) | Already handles hash updates; the seed only verifies |
-| Per-user sidebar | Admin-side hacks | `frontend/set_user_data` as her | It is per-user data keyed to the connection's user |
-| Reset wipe | `rm -rf` of a root-owned bind mount | Helper container (`docker run --rm -v <dir>:/config busybox ...`) | See Pitfall 7 |
-| Screenshots for the guide | Manual phone captures for UI screens | Playwright + token injection into `localStorage.hassTokens` (verified) | Reproducible, themed, seeded; only the Android install screens need a real phone |
+| Reading/deleting Google events | Raw Google API calls | `calendar.create_event`, `GET /api/calendars/...`, WS `calendar/event/delete` | Same surface as Local Calendar, so unit-testable |
+| Certificate chain for LAN HTTPS | Self-signed leaf trusted directly; an intermediate | Name-constrained **root** CA + leaf with IP SAN (script below) | Android needs a CA import; a single root avoids the open #7346 intermediate failure |
+| Dashboard resource registration | Custom JS injection | The integration's own `_register_dashboard_resource` + `lovelace/resources/update` | Already handles hash updates |
+| Per-user sidebar | Admin-side hacks | `frontend/set_user_data` as her | Per-user server-side data |
+| Reset wipe | `rm -rf` of a root-owned bind mount | Helper container (`docker run --rm -v <dir>:/config busybox ...`) | See Pitfall 9 |
+| Keeping WSL awake | systemd service | Windows Scheduled Task running `wsl.exe -e sleep infinity` | Only approach reported to work (#13416) |
+| Screenshots for the guide | Manual phone captures | Playwright + token injection into `localStorage.hassTokens` | Reproducible and seeded; only Android install screens need a real phone |
 
 **Key insight:** every step the seed needs already has an official or integration-provided API; the work is ordering, idempotence, safety checks, and refusing to run against Home.
 
+## Runtime State Inventory
+
+Not a rename/refactor/migration phase. Omitted.
+
 ## Common Pitfalls
 
-### Pitfall 1: Pending HTTP config reverts to plain HTTP after 5 minutes
-**What goes wrong:** Preview serves HTTPS for five minutes after a reset, then HA restarts onto port 8123 with no TLS; her phone shows a connection error; the seed's HTTPS client dies mid-run.
-**Why it happens:** HA 2026.10 migrates `http:` YAML to `.storage/http` once and stages a config that differs from the default as **pending**, scheduling `_async_revert_to_stable` after `AUTO_REVERT_DELAY = timedelta(minutes=5)` unless promoted [VERIFIED: homeassistant/components/http/config.py; reproduced: the first spike HA reverted to port 8123 with `pending ... error: not_promoted`].
-**How to avoid:** after onboarding, call WS `http/config/promote` (admin); assert `http/config` shows `active_config_type: "stable"` and `revert_at: null`. Verified with TLS: pending (`revert_at` set) -> promote -> stable.
-**Warning signs:** log line `Pending HTTP config was not confirmed within 0:05:00; reverting to the stable config and restarting`; `.storage/http` `pending.error == "not_promoted"`. A repair issue `deprecated_yaml` (breaks in 2027.2.0) is also created; plan the `http/config/configure` migration when HA is bumped.
+### Pitfall 1: Pending HTTP config reverts after 5 minutes
+**What goes wrong:** Preview serves HTTPS for five minutes after a reset, then restarts onto plain HTTP on 8123; her phone fails and the seed's client dies.
+**Why:** HA 2026.10 imports `http:` YAML once into `.storage/http` as **pending** and reverts after `AUTO_REVERT_DELAY: Final = timedelta(minutes=5)` unless promoted (`components/http/config.py:81`). Reproduced again this session: with only `server_port` in `http:` YAML, `http/config` returned `active_config_type: "pending"` with a `revert_at` timestamp and `.storage/http` held `pending.server_port: 8139` next to `stable.server_port: 8123`.
+**How to avoid:** the seed calls WS `http/config/promote` (`websocket_api.py:143`) right after onboarding and asserts `active_config_type == "stable"`, `revert_at == null`. Warning signs: log `Pending HTTP config was not confirmed within 0:05:00`; `.storage/http` `pending.error == "not_promoted"`. The YAML import also raises a repair (`breaks_in_ha_version 2027.2.0`); plan `http/config/configure` on the next HA bump.
 
 ### Pitfall 2: Readiness probe
-**What goes wrong:** `deploy-preview` waits forever or proceeds early.
-**Why:** `/api/onboarding` is 404 after onboarding; the container image may not even ship `curl` (A5).
-**How to avoid:** probe from the host: login, `GET /api/config`, require `state == "RUNNING"`, then require the Family Hub entry `loaded` via `config_entries/get`. Allow a generous first-boot timeout: the pip-installed spike took about 60-80 s with runtime requirement installs; first boot on a fresh Docker volume also installs requirements (Local Calendar `ical`, Google `gcal-sync`) and needs internet.
+**What goes wrong:** `deploy-preview` waits forever or proceeds early. `/api/onboarding` never signals readiness; the image may not ship `curl` (A5).
+**How to avoid:** host-side probe: login, WS `get_config`, `state == "RUNNING"`, then the Family Hub entry `loaded` via `config_entries/get`. Allow a generous first-boot timeout; a fresh Docker volume installs runtime requirements (Local Calendar `ical`, Google `gcal-sync`) and needs internet.
 
 ### Pitfall 3: Google refresh token dies every 7 days
-**What goes wrong:** D-10's "keep the sign-in across resets" silently stops working weekly; entries go to reauth.
-**Why:** OAuth app left in "Testing" [CITED: developers.google.com/identity/protocols/oauth2#expiration]. Also tokens unused for six months and the 100-token-per-client limit.
-**How to avoid:** publish the app (HA docs: "Publish app"); document re-sign-in as the fallback step; the seed's verify detects `setup_error`/reauth and prints the instruction.
+**What goes wrong:** D-10 silently stops working weekly. **Why:** app left in Testing. **How to avoid:** publish the app (D-26); verify detects `setup_error`/reauth and prints the one-time sign-in instruction. Also: a token unused for six months, and the 100-token cap.
 
-### Pitfall 4: Google entry without its credential looks like an auth failure
-**What goes wrong:** Pre-restoring the entry but forgetting `application_credentials/create` leaves the entry in `setup_error` with a reauth flow ("The configured authentication method is no longer available") [VERIFIED].
-**How to avoid:** order = restore entry pre-start, create credential, reload entry, assert `loaded`. The credential `id` must equal the entry's `data.auth_implementation`; it is derived from the client id, so the local file's client id must not change.
+### Pitfall 4: WSL mirrored mode and Docker are version-sensitive in 2026
+**What goes wrong:** Published container ports fail to bind or be reachable. **Evidence:** issue #40984 (opened 2026-07-02, still open 2026-10-01): on WSL 2.9.3/2.9.4 with `networkingMode=mirrored`, Docker fails with "failed to bind host port 0.0.0.0:8003/tcp: address already in use" although the port is free; NAT mode works; cause suspected as overlap between WSL's reserved guest ephemeral range and Windows' dynamic range (49152-65535), so low ports like 8124/8130 might be unaffected but the symptom was reported on port 8003, so this is not reliable. Older issues: #10494 (Docker 24-27 containers reachable from another machine on the LAN but not from the host itself; `hostAddressLoopback=true` confirmed as the fix), #10926 (container to Windows service refused in mirrored mode; fixed in WSL 2.3.11 with mixed later reports) [CITED: github.com/microsoft/WSL issues, fetched 2026-11-02].
+**How to avoid:** record `wsl --version` in `doctor`; do not auto-update WSL on the laptop between try-out sessions (`wsl --update` is a deliberate step); make the laptop checkpoint the first executable task after compose exists; keep the fallback ladder above. Confidence MEDIUM-LOW.
 
-### Pitfall 5: Chosen-calendars list is not a HA setting
-**What goes wrong:** Every calendar on the Google account (including other people's shared calendars and birthdays) becomes an entity, and Family Hub may poll them.
-**How to avoid:** disable non-chosen entities in the entity registry right after the first load (Pattern 5.4) and restrict `CONF_CALENDARS`/people to the chosen list. Reset re-creates the registry, so the disable step is part of every seed.
+### Pitfall 5: WSL shuts down when idle, taking Preview with it
+**What goes wrong:** She opens Preview and it is down although the laptop is on. **Why:** the distro stops when no Windows-side process holds it (#13416); `restart: unless-stopped` cannot help because dockerd is gone. **How to avoid:** the keep-alive Scheduled Task (Host layer item 5); `refresh-preview` and `doctor` report when the keep-alive task is absent; the guide for her says Preview is available at agreed times.
 
-### Pitfall 6: Docker Desktop vs Engine on the laptop
-**What goes wrong:** Desktop on macOS/Windows is unsupported by HA docs ("Docker *Desktop* will not work; you must use Docker *Engine*"), uses a helper VM, has bind-mount overhead, and its VM clock can drift after laptop sleep (long-standing reports; Docker published "Addressing Time Drift in Docker Desktop for Mac").
-**How to avoid:** prefer Engine on Linux (matches D-04's "any Linux or macOS host with Engine/Compose v2"). On macOS, restart containers after wake if the time is off and keep `TZ` set; with Engine, suspended containers simply resume. `restart: unless-stopped` starts containers after a daemon/host restart; a container you stopped by hand stays stopped [CITED: docs.docker.com]. Laptop sleep does not trigger restarts; it pauses everything, so Preview is unavailable while asleep (D-03).
+### Pitfall 6: Google refresh churns the real calendars
+**What goes wrong:** Daily refresh deletes and re-creates tagged events, producing notifications and edits on family phones every day. **How to avoid:** week-anchored keys and diff sync (Pattern 5.6). Also keep `refresh-preview` from running while a tagged-event delete is unverified: hard stop when the allow-listed calendar set or tag does not match the family file.
 
-### Pitfall 7: Root-owned files in a bind-mounted volume
-**What goes wrong:** HA runs as root in the container, so `.storage` and `family_hub_backups/` are root-owned on the host; `rm -rf` by the developer fails or needs sudo, and a half-reset resurrects data (PITFALLS 3).
-**How to avoid:** `reset` stops the stack and wipes through a throwaway container (`docker run --rm -v "$HA_CONFIG_DIR":/config busybox sh -c 'find /config -mindepth 1 -maxdepth 1 ! -name custom_components -exec rm -rf {} +'`). Keep `custom_components/` (deployed code) so reset restores data, not code. Test: seed, mutate, reset, assert state equals seed and `family_hub_backups/` is empty (it lives at `<config>/family_hub_backups`: `SETTINGS_BACKUP_DIR_NAME = "family_hub_backups"` const.py:174, `hass.config.path(SETTINGS_BACKUP_DIR_NAME, filename)` store.py:319; the spike produced `chores_backup.json, goals_backup.json, permissions_backup.json, rewards_backup.json, routines_backup.json, settings_backup.json` there). [A3: root ownership not observable here (no Docker daemon)]
+### Pitfall 7: Google entry without its credential looks like an auth failure
+**What goes wrong:** the preserved entry goes to `setup_error` with a reauth flow. **How to avoid:** order = restore entry pre-start, create credential, reload entry, assert `loaded`; the credential id is derived from the client id, so the client id in the local file must not change.
 
-### Pitfall 8: Published ports and the laptop leaving the home network
-**What goes wrong:** Docker publishes to all interfaces by default [CITED: docs.docker.com/engine/network/port-publishing]; on café Wi-Fi the Preview login page (and its Google token) is reachable. Binding the Preview port to the reserved LAN IP instead would make container start fail when the IP is absent [A4].
-**How to avoid:** Dev bind `127.0.0.1:8130`; Preview `${PREVIEW_BIND:-0.0.0.0}` documented, with HA's default `ip_ban_enabled: true` [VERIFIED: http config defaults], strong generated passwords, no port forwarding, and a `scripts/preview-down` the developer runs before leaving home. The Google token on a laptop is the sensitive asset (Security Domain).
+### Pitfall 8: CRLF and wrong-filesystem traps from Windows
+**What goes wrong:** `bash\r: No such file` on scripts cloned via Windows git; secrets cannot be `chmod 0600`; bind mounts are slow. **How to avoid:** `.gitattributes` (LF), clone inside WSL, `doctor` refuses `/mnt/*`.
 
-### Pitfall 9: "Whenever she opens Preview it shows a current week" needs a refresh job
-**What goes wrong:** Seeded events/chores are date-relative at seed time; days later her view is stale (PITFALLS 4). Recurring chores only re-open after approval, so unticked chores simply go overdue; routines reset daily by themselves.
-**How to avoid:** a tag-aware `refresh-preview` (re-lay events, meals, chores, balances; never touches accounts) that `deploy-preview` also runs; schedule it daily (systemd user timer/cron on Linux, launchd on macOS) plus a run at boot; the guide tells her the agreed test times. Flag the success-criterion wording in the plan.
+### Pitfall 9: Root-owned files in a bind-mounted volume
+**What goes wrong:** HA runs as root in the container, so `.storage` and `family_hub_backups/` are root-owned on the host; `rm -rf` fails, and a half-reset resurrects data (`store.py` `_maybe_restore_backup` restores from `family_hub_backups/` when a Store loads empty; backup dir name `SETTINGS_BACKUP_DIR_NAME = "family_hub_backups"` at `const.py:174`).
+**How to avoid:** reset stops the stack and wipes through a throwaway container (`docker run --rm -v "$HA_CONFIG_DIR":/config busybox sh -c 'find /config -mindepth 1 -maxdepth 1 ! -name custom_components -exec rm -rf {} +'`), keeping `custom_components/`. Test: seed, mutate, reset, assert state equals seed and `family_hub_backups/` is empty. [A2: root ownership not observable here]
 
-### Pitfall 10: `reset-preview` logs her phone out
-**What goes wrong:** The wipe removes `.storage/auth` and `core.uuid`; her Companion session for the Preview server is invalid, the app asks her to sign in again, and the registered `mobile_app` device is gone.
-**How to avoid:** put one line in the guide ("If the app says it cannot sign in after the developer resets Preview, tap Log in and use the same username and password"). Consider writing a stable per-environment `core.uuid` (random, generated once, stored in `dev/.ha-secrets/`, never Home's) so the app sees the same instance; whether the Android app re-registers cleanly after a wipe is unverified (A10), so make it a checkpoint on her real phone.
+### Pitfall 10: Published ports and the laptop leaving home
+**What goes wrong:** Docker publishes to all interfaces by default [CITED: docs.docker.com/engine/network/port-publishing]; on other Wi-Fi the Preview login (and its Google token) is reachable. Binding to the reserved IP would make start fail if the IP is absent [A4].
+**How to avoid:** Dev `127.0.0.1:8130`; Preview `${PREVIEW_BIND:-0.0.0.0}:8124`, HA's `ip_ban_enabled: true` default (read from `http/config` output: `"ip_ban_enabled": true`), generated strong passwords, no port forwarding, a `scripts/preview-down` the developer runs before leaving home, and the Hyper-V rule only for 8124. Optionally restrict the rule's remote addresses to the home subnet.
 
-### Pitfall 11: Companion registers on Preview and shares phone sensors
-**What goes wrong:** Each added server gets its own `mobile_app` device and `notify.mobile_app_<device>`; the app can send sensors and location to every server [CITED: companion.home-assistant.io FAQ: "If you use multiple servers, make sure the correct servers have each sensor enabled."]. Preview's notify list then contains a real phone.
-**How to avoid:** keep every `notifyTargets` empty/persistent-notification and let verify fail otherwise; tell the developer to disable sensors for the Preview server in app settings; also check the Android "Add server" screen can enter the URL manually since zeroconf is off [CITED: Android multi-server docs].
+### Pitfall 11: `reset-preview` logs her phone out (D-27)
+**What goes wrong:** the wipe removes `.storage/auth`; her Companion session is invalid, and the registered `mobile_app` device and its webhook are gone. HA's developer docs say a webhook 410 "means the integration has been deleted. You should notify the user and most likely register again" [CITED: developers.home-assistant.io/docs/api/native-app-integration/sending-data], so the app should prompt, but the exact Android behaviour is unverified.
+**How to avoid:** seed her with the **same username and password** every reset; guide line: "If the app asks you to sign in again after the developer has reset Preview, sign in with your usual details; if it still fails, tell the developer." Test on her phone (checkpoint), record whether re-login or re-adding the server was needed in the guide. Pinning a per-environment `core.uuid` (format read from `helpers/instance_id.py`: `{"uuid": <hex>}`) is the fallback only if re-adding is required; note `core.uuid` was not even created in a fresh run this session, so Companion may not depend on it (A7).
 
-### Pitfall 12: Secure-context differences are small
-HTTP vs HTTPS matters for Chrome/WebView features such as service workers and Assist microphone; in the served card code the only secure-context-dependent API is the clipboard, and it has a fallback: `_copyTextToClipboard` ("Best-effort clipboard write with a fallback for contexts where navigator.clipboard either doesn't exist or throws (an insecure context ...)", family-week-calendar-card.js:27719-27733). `isSecureContext`, `wakeLock`, `serviceWorker`, `mediaDevices`, `crypto.subtle` were not found in `card/`/`panel/` (grep). `http://localhost` is already a secure context, so Dev gains little from HTTPS parity beyond testing the same cert path.
+### Pitfall 12: Edited card JS is not reloaded by a normal browser refresh (DEV-02)
+**What goes wrong:** the developer edits `card/*.js` in Dev, refreshes, and still sees the old code. **Evidence (reproduced this session):** a local aiohttp `FileResponse` (the same ETag + Last-Modified, no Cache-Control behaviour as the HA static handler registered with `cache_headers=False`, `__init__.py:12553-12561`) served a module whose `Last-Modified` was 30 days old; after editing the file and calling Playwright/Chromium `page.reload()` twice, the page still ran the old module (`one`, `one`, `one`). The `?v=<hash>` only changes at HA start. [VERIFIED: executed in this session]
+**How to avoid:** ship `scripts/dev-cards` that recomputes each served file's hash and calls `lovelace/resources/update` `{resource_id, url: "<base>?v=<newhash>"}` (verified this session: `resource_id` + `url` accepted), after which a normal refresh fetches the new URL. Document the hard-reload (Ctrl+Shift+R, or DevTools "Disable cache") as the fallback. Python changes still need a container restart (`docker compose restart`).
 
-### Pitfall 13: Non-admin event subscriptions
-Her browser logged `Refusing to allow Her Name to subscribe to event family_hub_timer_alarm_ring` and `... family_hub_daily_digest_open` (HA allows only `SUBSCRIBE_ALLOWLIST` events to non-admins [VERIFIED: websocket_api/commands.py:194]). The chores card catches this (`_subscribeAlarmEvents`: "Best-effort - ... the same-tab-only local alarm ... still works exactly as before", family-hub-chores-card.js:1403-1425), so ticking chores and redeeming rewards are unaffected, but timer-alarm broadcast to her tab and the digest popup will not work for a non-admin. Record in the UAT notes; do not fix in Phase 2.
+### Pitfall 13: Companion registers on Preview and shares phone sensors
+Each added server gets its own `mobile_app` device and `notify.mobile_app_<device>`; the app can send sensors and location to every server [CITED: companion.home-assistant.io FAQ]. Preview's notify list then contains a real phone. Keep every `notifyTargets` empty/persistent-notification and let verify fail otherwise; tell the developer to disable sensors for the Preview server in app settings; the Android "Add server" screen must accept a manual URL because zeroconf is off.
 
-### Pitfall 14: Missing optional entities cause visible errors
-With only some `todo.*` lists and no `weather.forecast_home`, the cards log service-call errors. Create all five lists; decide the `weather_entity` (omit `met`; check how the calendar card renders without it, A7).
+### Pitfall 14: Secure-context differences are small
+The only secure-context dependent API in the served calendar card is the clipboard, and it has a fallback (`_copyTextToClipboard`, `card/family-week-calendar-card.js:27725`, comment names the insecure-context case). `http://localhost` is already a secure context, so Dev gains little from HTTPS beyond testing the same certificate path.
 
-### Pitfall 15: Stale JS in Dev/Preview
-Served JS has `Etag` and `Last-Modified` and no `Cache-Control` [VERIFIED: curl -D]; the `?v=` hash only changes at HA start. Dev edits without restart rely on the browser revalidating on refresh (A9). Preview deploys restart HA, so the hash changes, but her phone must reload the dashboard (pull-to-refresh or reopen) to re-read `lovelace/resources` (PITFALLS 6); the build stamp makes this visible.
+### Pitfall 15: Non-admin event subscriptions
+Her browser logs `Refusing to allow ... to subscribe to event family_hub_timer_alarm_ring` / `family_hub_daily_digest_open` (HA allows only `SUBSCRIBE_ALLOWLIST` events to non-admins). The chores card catches this (`_subscribeAlarmEvents`), so chores and rewards work; timer-alarm broadcast and the digest popup do not work for a non-admin. Record in UAT notes; do not fix in Phase 2.
 
-### Pitfall 16: Seed side effects of `core_config`
-Onboarding auto-adds `radio_browser` and `google_translate` (outbound) and `met`; delete them in the seed (Pattern 3 step 4) to honour the locality rule.
+### Pitfall 16: Missing optional entities
+Create all five `todo.*` lists. The week card handles a missing weather entity gracefully: `_fetchWeather` wraps the `weather.get_forecasts` call in try/catch and falls back to `this._forecast = {}` (`card/family-week-calendar-card.js:13291-13318`), so no UI error (HA logs a service error; resolved old A7). Omit `met` (the seed deletes it).
+
+### Pitfall 17: Seed side effects of onboarding
+`core_config` auto-adds `radio_browser`, `google_translate`, `shopping_list` (and `met` once a location exists). Delete the outbound ones in the seed (Pattern 3 step 4) to honour locality.
+
+### Pitfall 18: The OAuth redirect and a private CA
+The Google OAuth redirect lands in the developer's Windows browser; without the CA in the Windows store it shows a certificate warning, and `my.home-assistant.io` must hold the matching instance URL. Document both in the one-time Google checkpoint (A8).
 
 ## Code Examples
 
-Verified by execution against HA 2026.10.4 unless noted. Helpers: `post(path, json, headers)` and a small WS wrapper (`{"id": n, "type": ..., ...}` -> read until matching `id`).
+Verified by execution against HA 2026.10.4 on 2026-10-28 unless noted; `BASE` is `https://127.0.0.1:<port>` from inside WSL with an `ssl.SSLContext` built from `ca.crt` (never `verify=False`).
 
-### Onboard a pristine instance (client_id must match the instance URL)
+### Onboard a pristine instance
 ```python
-# Source: homeassistant/components/onboarding/views.py + run in this session
-BASE = "https://localhost:8124"; CID = BASE + "/"            # TLS: aiohttp ssl context built from the CA file (never verify=False)
+# Source: homeassistant/components/onboarding/views.py; re-run (HTTP) in this session
+CID = BASE + "/"
 r = await s.post(BASE + "/api/onboarding/users", json={"client_id": CID, "name": "Dev Admin",
         "username": "dev", "password": PASSWORD, "language": "en"})
 code = (await r.json())["auth_code"]
@@ -443,20 +490,27 @@ h = {"Authorization": "Bearer " + tok["access_token"]}
 for step in ("core_config", "analytics"):
     await s.post(BASE + f"/api/onboarding/{step}", headers=h, json={})
 await s.post(BASE + "/api/onboarding/integration", headers=h, json={"client_id": CID, "redirect_uri": CID + "?auth_callback=1"})
-# then, over WS as admin:
-#   {"type": "http/config/promote"}                         -> success (clears the 5-minute revert)
-#   {"type": "config/core/update", "location_name": "Family Hub PREVIEW"}
+# then over WS as admin: {"type": "http/config/promote"}; {"type": "config/core/update", "location_name": "Family Hub PREVIEW", "time_zone": TZ, ...}
+```
+
+### Login as a user (no stored token) and update a resource URL
+```python
+# Source: login flow + lovelace/resources/update, both re-run this session
+r = await s.post(BASE + "/auth/login_flow", json={"client_id": CID, "handler": ["homeassistant", None], "redirect_uri": CID + "?auth_callback=1"})
+fid = (await r.json())["flow_id"]
+r = await s.post(BASE + f"/auth/login_flow/{fid}", json={"client_id": CID, "username": USER, "password": PW})
+tok = await (await s.post(BASE + "/auth/token", data={"grant_type": "authorization_code", "code": (await r.json())["result"], "client_id": CID})).json()
+# WS admin: {"type": "lovelace/resources/update", "resource_id": rid, "url": "/family_hub_card/x.js?v=<newhash>"}   -> {"id","url","type"}
 ```
 
 ### Create her non-admin account and a kid
 ```python
-# WS (admin) - verified
 r = await ws.call("config/auth/create", name="Her Name", group_ids=["system-users"], local_only=False)
 uid = r["result"]["user"]["id"]
 await ws.call("config/auth_provider/homeassistant/create", user_id=uid, username="her", password=PASSWORD)
 ```
 
-### Drive the Family Hub config flow (field names quoted in Pattern 3)
+### Drive the Family Hub config flow
 ```python
 fid = (await post("/api/config/config_entries/flow", {"handler": "family_hub", "show_advanced_options": False}))["flow_id"]
 step = lambda d: post(f"/api/config/config_entries/flow/{fid}", d)
@@ -474,23 +528,13 @@ await step({"add_dashboard": False}); res = await step({})        # -> {"type": 
 await ws.call("lovelace/dashboards/create", url_path="family-hub", title="Family Hub", icon="mdi:home-heart",
               show_in_sidebar=True, require_admin=False, mode="storage")
 await ws.call("lovelace/config/save", url_path="family-hub", config=CONFIG)      # views of type "panel"
-# login as her, then on HER websocket:
 panels = (await her_ws.call("get_panels"))["result"]
 hidden = [p for p in panels if p not in ("family-hub", "profile", "notfound")]    # includes "theme-builder"
 await her_ws.call("frontend/set_user_data", key="sidebar", value={"panelOrder": [], "hiddenPanels": hidden})
 await her_ws.call("frontend/set_user_data", key="core", value={"default_panel": "family-hub"})
 ```
 
-### Google credential + preserved entry
-```python
-# credential id is derived: google_<slug of client id>; must equal entry["data"]["auth_implementation"]
-await ws.call("application_credentials/create", domain="google", client_id=CLIENT_ID, client_secret=SECRET, name="Google")
-await post(f"/api/config/config_entries/entry/{ENTRY_ID}/reload", {})     # -> {"require_restart": false}; state becomes "loaded"
-# pre-start file (HA stopped, empty volume):  .storage/core.config_entries
-# {"version": 1, "minor_version": 5, "key": "core.config_entries", "data": {"entries": [<google entry>]}}
-```
-
-### Name-constrained local CA + leaf (verified with `openssl verify` and with HA serving HTTPS)
+### Name-constrained local root CA + leaf (verified with `openssl verify` and with HA serving HTTPS, 2026-10-28)
 ```bash
 # ca.cnf [v3_ca]: basicConstraints = critical, CA:TRUE, pathlen:0 ; keyUsage = critical, keyCertSign, cRLSign ;
 #   nameConstraints = critical, permitted;IP:192.168.0.0/255.255.0.0, permitted;IP:127.0.0.0/255.0.0.0, permitted;DNS:localhost
@@ -502,9 +546,9 @@ openssl ecparam -name prime256v1 -genkey -noout -out leaf.key
 openssl req -new -key leaf.key -config leaf.cnf -out leaf.csr
 openssl x509 -req -in leaf.csr -CA ca.crt -CAkey ca.key -CAcreateserial -days 365 -sha256 -extfile leaf.cnf -extensions v3_req -out leaf.crt
 openssl verify -CAfile ca.crt leaf.crt                                   # leaf.crt: OK
-# a leaf for DNS:evil.example.com fails: "error 47 ... permitted subtree violation"
+cat leaf.crt ca.crt > fullchain.pem; cp leaf.key privkey.pem; chmod 600 privkey.pem ca.key
 ```
-Add `10.0.0.0/255.0.0.0` and `172.16.0.0/255.240.0.0` to `permitted` if the home LAN uses them. Keep leaf validity at or below ~1 year; the /e/OS issue thread reported a 10-year certificate failing while 180 days worked (anecdotal, unconfirmed). Install **only `ca.crt`** on the phone; never `ca.key`. Serve `fullchain.pem` (= leaf then CA is optional) and `privkey.pem`.
+The CA signs the leaf **directly** (no intermediate; see #7346). Add `10.0.0.0/255.0.0.0` and `172.16.0.0/255.240.0.0` to `permitted` if the home LAN uses them (read `PREVIEW_HOST_IP` in `make-certs` and fail clearly when it is outside the permitted ranges). Keep leaf validity at about a year (the /e/OS thread anecdote: a 10-year leaf failed, 180 days worked, unconfirmed). Install **only `ca.crt`** on the phone and in the Windows store; never `ca.key`. Regenerate the leaf when `PREVIEW_HOST_IP` changes (D-05, host move).
 
 ### Headless screenshot of her dashboard (for `docs/family/`)
 ```python
@@ -513,161 +557,168 @@ tokens = {"access_token": t["access_token"], "token_type": "Bearer", "expires_in
           "refresh_token": t["refresh_token"]}
 ctx = await browser.new_context(viewport={"width": 412, "height": 900}, device_scale_factor=2, is_mobile=True)
 await ctx.add_init_script("localStorage.setItem('hassTokens', %s);" % json.dumps(json.dumps(tokens)))
-page = await ctx.new_page(); await page.goto(BASE + "/"); await page.wait_for_timeout(30000)   # HA frontend is slow on first load
+page = await ctx.new_page(); await page.goto(BASE + "/"); await page.wait_for_timeout(30000)
 ```
-Result in the spike: landed on `/family-hub/home` (system default panel), calendar card rendered in the `blossom` theme with the seeded `[PREVIEW] Dentist` event, and the sidebar showed only Family Hub (+ Theme Builder before it was added to `hiddenPanels`).
+Result in the 2026-10-28 spike: landed on `/family-hub/home`, calendar card rendered with the seeded `[PREVIEW] Dentist` event. Chromium launches in this sandbox (Playwright 1.64.1); in WSL it needs the usual `playwright install --with-deps chromium` (A10).
 
 ### Meals and events (HA built-ins)
 ```python
 desc = json.dumps({"description": "", "link": "", "color": "", "block": 0, "recur": None, "grocyRecipeId": None,
                    "servings": None, "spanDays": 1, "additionalRecipes": [], "leftoverDates": []})
-await call_service("todo", "add_item", {"entity_id": "todo.meal_plan", "item": "Spaghetti night", "description": desc, "due_date": "2026-10-29"})
+await call_service("todo", "add_item", {"entity_id": "todo.meal_plan", "item": "Spaghetti night", "description": desc, "due_date": "2026-11-04"})
 await call_service("calendar", "create_event", {"entity_id": cal, "summary": "[PREVIEW] Dentist",
-                   "start_date_time": "2026-10-29 01:00:00", "end_date_time": "2026-10-29 02:00:00",
-                   "description": "family-hub-seed:preview"})
+                   "start_date_time": "2026-11-04 16:00:00", "end_date_time": "2026-11-04 17:00:00",
+                   "description": "family-hub-seed:preview:dentist-wed"})
 ```
-(The meal description shape is the Python twin of the card's encoder, `_encode_dish_description`, __init__.py:3324-3365; keys quoted there.)
+(The meal description shape is the Python twin of the card's encoder, `_encode_dish_description`, `__init__.py:3324`; the keys were quoted there on 2026-10-28.)
 
 ## State of the Art
 
 | Old Approach | Current Approach | When Changed | Impact |
 |--------------|------------------|--------------|--------|
-| `http:` options only in YAML | YAML imported once into `.storage/http` as pending; promote or auto-revert in 5 minutes; YAML deprecated (`breaks_in_ha_version 2027.2.0`) | HA 2026.x [VERIFIED in core source] | HTTPS seeding must promote; plan a move to `http/config/configure` later |
-| `voluptuous` in core | `probatio` (a modern fork) in core; `voluptuous 0.16.0` still installed | HA 2026.x | This integration's `voluptuous` websocket schemas keep working (verified); watch on every HA bump |
-| Python 3.12/3.13 | Python 3.14 (core uses `except A, B:`) | HA 2026.10 | Seed tooling and any pip HA need 3.14 (`uv`) |
-| Companion trusts only system CAs | Default trust manager + fallback to user-installed CAs | Android 2026.6.5 | Needs app >= that release on her phone |
-| Google device-auth credentials | Web-application credentials via `my.home-assistant.io` redirect | HA docs | Use a Web client; app must be published |
-| `sidebar` order in localStorage | `frontend/set_user_data` key `sidebar` (`panelOrder`, `hiddenPanels`) | HA frontend 2026.x | Per-user, server-side; the frontend falls back to localStorage only if absent |
+| `http:` options only in YAML | YAML imported once as pending; promote or auto-revert in 5 min; YAML deprecated (2027.2.0) | HA 2026.x | Seed must promote; plan `http/config/configure` later |
+| `voluptuous` in core | `probatio` fork in core (`lovelace`, `http`, `config` modules import it); this integration's `voluptuous` schemas still work | HA 2026.x | Watch on every HA bump |
+| Python 3.12/3.13 | Python 3.14 (HA 2026.10) | HA 2026.10 | Seed/test tooling needs 3.14 via `uv` |
+| Companion trusts only system CAs | Default trust manager + user-CA fallback | Android PR #7044, 2026-06-18; release 2026.6.5 | Needs app >= 2026.6.5; intermediate-chain bug #7346 open |
+| Google device-auth credentials | Web-application credentials via `my.home-assistant.io` redirect | HA docs | Use a Web client; publish the app |
+| WSL NAT networking | Mirrored mode (Windows 11 22H2+) with Hyper-V firewall | WSL 2.0.9+ | Needs the Hyper-V rule; version-sensitive with Docker |
 
-**Deprecated/outdated:** the ARCHITECTURE.md compose healthcheck against `/api/onboarding` (404 after onboarding); `track:` in `google_calendars.yaml` (deprecated, imported to the UI).
+**Deprecated/outdated:** the ARCHITECTURE.md compose healthcheck against `/api/onboarding`; `track:` in `google_calendars.yaml`; the Phase 2 research note "Docker Desktop on macOS" (the host is Windows + WSL2 Engine, D-23).
 
 ## Assumptions Log
 
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
-| A1 | Android "install CA" menu path and success on her specific phone/OEM (Settings > Security > Encryption & credentials > Install a certificate > CA certificate varies by OEM/version) | Answers D-06, guide | The guide's Android steps are wrong or the app still rejects the CA; mitigated by a real-phone checkpoint and the fallback ladder |
-| A2 | Her Companion app version is >= 2026.6.5 | Answers D-06 | User-CA fallback missing; app shows "SSL handshake failed" |
-| A3 | HA runs as root in the container so bind-mounted `.storage` is root-owned on Linux Engine | Pitfall 7 | Reset helper container unnecessary (harmless) or, if some other uid, still fine |
-| A4 | Docker fails to start a container whose published port is bound to an IP not present on the host | Pitfall 8 | If it works, binding to the reserved IP becomes a cleaner LAN-only option |
-| A5 | The HA container image has `curl` (Compose healthcheck) | Pitfall 2 | Use host-side probes only (recommended anyway) |
-| A6 | Companion app re-registers cleanly (or needs only a re-login) after Preview's volume is wiped; a stable `core.uuid` helps | Pitfall 10 | Re-adding the server may be needed after each reset |
-| A7 | The calendar card renders acceptably without `weather.forecast_home` | Pitfall 14 | A visible error/blank weather row in her UI; create a dummy weather entity or set `weather_entity` |
-| A8 | The Pantry card renders usefully with Grocy off | Pattern 4 | Omit it from the dashboard (D-18 lists Recipes/Pantry) |
-| A9 | Browser refresh picks up edited card JS in Dev without a HA restart (no `Cache-Control`; ETag present) | DEV-02, Pitfall 15 | DEV-02 needs a "restart or hard-reload" instruction or a Dev cache header |
-| A10 | `mobile_app:` in the minimal `configuration.yaml` is sufficient for Companion registration | Pattern 2 | Companion cannot register; add `webhook`/dependencies or `default_config` subset |
-| A11 | The `my.home-assistant.io` redirect works to a LAN HTTPS IP with a private CA (the browser doing sign-in must trust it and have the instance URL set in My Home Assistant) | Pattern 5 | Google sign-in cannot complete; sign in via `http://localhost:<dev port>` on the laptop instead |
-| A12 | Google's secret iCal address is enabled for the family calendars and is current enough for a safety backup (Google's feed can lag) | D-08 | Backup step must switch to API export; backups could miss very recent edits |
-| A13 | Compose `--env-file versions.env` tolerates unused keys | Pattern 1 | Split pin vars into a compose-only env file |
-| A14 | Docker Desktop clock-drift mitigation is Docker-side (blog exists) | Pitfall 6 | Only matters if the laptop is macOS/Windows |
-| A15 | A theme such as `midnight` renders well in all cards and is visually unmistakable vs Home's likely `slate` | Discretion (theme) | Pick `blossom` (rendering verified in the spike) |
-| A16 | Package legitimacy SUS verdicts for `aiohttp`, `PyYAML`, `playwright`, `homeassistant` are data artefacts | Package Legitimacy Audit | Add the human-verify checkpoint (already required) |
+| A1 | Android "install CA" menu path and success on her specific phone/OEM; her Companion app is >= 2026.6.5 | Answers D-06, guide | Guide steps wrong or app rejects the CA; mitigated by the phone checkpoint and the fallback ladder |
+| A2 | HA runs as root in the container so bind-mounted `.storage` is root-owned on WSL ext4 | Pitfall 9 | Helper container unnecessary (harmless) |
+| A3 | A Hyper-V firewall rule alone (not also a Defender rule) lets her phone reach 8124, and the Wi-Fi profile must be Private | Host layer 3 | Phone cannot connect until the second rule/profile is fixed; checkpoint catches it |
+| A4 | Docker fails to start a container whose published port is bound to an IP not present on the host | Pitfall 10 | If it works, binding to the reserved IP becomes a cleaner LAN-only option |
+| A5 | The HA container image has `curl` | Pitfall 2 | Use host-side probes only (recommended anyway) |
+| A6 | The Pantry card is not useful with Grocy off and can be omitted | Pattern 4 | A requested view missing; check in Dev |
+| A7 | Companion needs no stable `core.uuid` and re-login (same credentials) is enough after reset | Pitfall 11 | Re-adding the server needed each reset; pin a per-env uuid |
+| A8 | The `my.home-assistant.io` redirect works to `https://localhost:<port>` with a private CA trusted in the Windows store, instance URL set per browser | Pattern 5.4, Pitfall 18 | Google sign-in cannot complete; sign in via HTTP localhost on Dev |
+| A9 | A published-but-unverified Google app issues non-expiring refresh tokens (HA docs say "Publish app" avoids the 7-day expiry; Google's page does not address this case) | Pattern 5.1 | Weekly re-sign-in; D-10 degrades to the documented fallback |
+| A10 | `playwright install --with-deps chromium` works inside WSL Ubuntu for guide screenshots | Code Examples | Screenshots taken from a Windows-side browser instead |
+| A11 | Google's secret iCal address exists for every chosen calendar (only owners can see it) and its feed is fresh enough for a safety backup; Google documents no refresh interval | D-30 backups | Backup misses recent edits or is unavailable for shared calendars; use the HA-API JSON snapshot supplement and decide with the developer |
+| A12 | Restoring one event from an `.ics` works via Google Calendar's Import (Settings > Import & export) | D-08 docs | Restore instructions wrong; test once with a throwaway calendar |
+| A13 | Windows Task Scheduler "run as soon as possible after a scheduled start is missed" and `schtasks`/`powercfg` options behave as assumed on her laptop's Windows build | Host layer 5, 6 | Refresh misses a day; manual `refresh-preview` remains |
+| A14 | Windows random-hardware-address setting is what breaks DHCP reservation, and turning it off per network fixes it | Host layer 7 | Reservation drifts; check the router's client list |
+| A15 | Package legitimacy SUS verdicts (aiohttp, PyYAML, playwright, homeassistant) are data artefacts | Package Legitimacy Audit | Human-verify checkpoint is already required |
 
 ## Open Questions
 
-1. **What OS is the developer's laptop, and is it on Wi-Fi or Ethernet?**
-   - Known: D-04 says Linux or macOS with Docker Engine/Compose v2; HA says Desktop is unsupported. A DHCP reservation keys on the MAC; Wi-Fi "private/random MAC" modes defeat it.
-   - Unclear: actual OS/Docker flavour and interface.
-   - Recommendation: plan for Linux Engine; add a `scripts/doctor` that prints Docker flavour, interface, MAC-randomisation hint and clock; mark macOS as best-effort.
+1. **Does the laptop's current WSL build publish Docker ports to the LAN in mirrored mode?**
+   - Known: reports of success for LAN clients; 2.9.x regression report; `hostAddressLoopback` for host-side access.
+   - Unclear: this laptop's WSL version and behaviour.
+   - Recommendation: first executable laptop checkpoint right after compose exists; follow the fallback ladder; record `wsl --version`.
 
-2. **Where should seeded `[PREVIEW]`/`[DEV]` events be written, given default reminders buzz subscribers' phones?**
-   - Known: HA cannot set reminders on created Google events; default reminders apply. D-11 accepts events appearing on family phones, not necessarily notifications.
-   - Unclear: whether the developer wants phones to buzz.
-   - Recommendation: add a **dedicated Google calendar** ("Family Hub Preview events") that the seed writes to and that nobody subscribes to on a phone, plus mapping members to the real calendars read-only for display; or schedule seeded events outside reminder windows. Needs the developer's call before planning the Google seed.
+2. **Does a Scheduled Task `wsl.exe -e sleep infinity` keep Preview up reliably across idle and sleep/resume on her laptop's WSL build?**
+   - Known: only reported working approach (#13416, still open).
+   - Unclear: behaviour after Windows sleep, hibernate and Windows Update restarts.
+   - Recommendation: checkpoint over one overnight cycle before the first UAT with her; document the agreed-times model (D-03).
 
-3. **Which Google account and Cloud project own the OAuth client, and will it be published?**
-   - Known: Web client, redirect `https://my.home-assistant.io/redirect/oauth`, app must be published to avoid the 7-day expiry.
-   - Unclear: who creates it; whether the family calendars are visible to one account with writer access.
-   - Recommendation: a human-verify checkpoint with exact console steps; record client id/secret paths in `host.env` only.
+3. **Is the secret iCal address available for every chosen Google calendar?**
+   - Known: it exists in Google Calendar settings under Integrate calendar; Google's page gives no refresh interval and no statement about calendars you do not own.
+   - Unclear: whether each calendar the developer chooses is owned by him.
+   - Recommendation: the Google checkpoint lists each calendar and its backup method; where no iCal address exists, either the developer asks the owner, or the HA-API JSON snapshot is the stated backup (developer's call); hard stop otherwise (D-30).
 
-4. **After `reset-preview`, must she sign in again on her phone?**
-   - Known: auth store and `core.uuid` are wiped.
-   - Unclear: Android Companion behaviour (A6).
-   - Recommendation: checkpoint on her real phone; adopt a stable per-env `core.uuid` if re-adding the server is needed; otherwise document a one-line re-login.
+4. **Who owns the chosen real calendars, and does the developer's account have writer access to all of them?**
+   - Known: read-only calendars get no create/delete automatically.
+   - Unclear: the actual list (kept in the gitignored family file).
+   - Recommendation: the family-file schema records `calendar_id`, `person`, `writable`, and `expect_events`; the seed refuses to write tagged events to a calendar not marked writable.
 
-5. **How will `refresh-preview` be scheduled on the laptop?**
-   - Recommendation: daily timer plus on-boot; ship the unit/plist as examples and document manual `refresh-preview` as the minimum; reword the success criterion to "at agreed times" (D-03).
+5. **Does Android's PKIX validation honour the IP name constraints on the CA?**
+   - Known: a name-constrained CA was reported working in issue #5565 (2026-10-28 research); CA verified with `openssl`.
+   - Unclear: her phone/ROM.
+   - Recommendation: part of the phone checkpoint; fallback is regenerating an unconstrained CA (mkcert-style) for the home LAN only, a recorded trade-off.
 
-6. **Does she want a dark theme?** Recommend Preview `midnight` (dark, unmistakably unlike a light Home) with `blossom` as the verified-rendering alternative; her choice.
-
-7. **Backup method for D-08:** secret iCal URLs (simple, per calendar, stored in `family.local.yaml`) vs Google API export (lossless). Recommend iCal URLs with a non-empty check and a hard stop on failure.
-
-8. **Which HA `configuration.yaml` core fields come from where?** Home does not exist yet; `TZ`, country, currency and units live in `host.env` now and must be reconciled in Phase 4.
+6. **After a reset, does the Android app need only a re-login or re-adding the server (D-27)?**
+   - Recommendation: checkpoint on her phone during the first `reset-preview` rehearsal; write the result into the guide.
 
 ## Environment Availability
 
 | Dependency | Required By | Available | Version | Fallback |
 |------------|------------|-----------|---------|----------|
-| Docker CLI | compose tooling | CLI only: `Docker version 29.9.2`; **daemon not running** (`dial unix /var/run/docker.sock`) | 29.9.2 | Automated tests run against pip-installed HA; Docker steps become human-verify checkpoints on the laptop |
-| Python 3.14 via `uv` | seed tool, pip HA | yes (`uv venv --python 3.14` gave CPython 3.14.9) | 3.14.9 | -- |
+| Docker CLI + Compose | compose tooling | CLI only: Docker 29.9.2, Compose 5.6.1; **daemon not running** in this sandbox | 29.9.2 / 5.6.1 | Compose files verified via `docker compose config`; running containers is a laptop checkpoint |
+| Python 3.14 via `uv` | seed tool, pip HA | yes (venv at `~/.cache/fh-hassfest/venv`, CPython 3.14.9, HA 2026.10.4) | 3.14.9 | -- |
 | System Python | -- | 3.13.17 (too old for HA 2026.10) | 3.13.17 | use `uv` 3.14 |
 | Node | not needed this phase | v22.22.0 | -- | -- |
 | `openssl` | certs | yes | 3.0.13 | `mkcert` on the laptop |
 | `git` | `git archive` deploy | yes | -- | -- |
-| Headless Chromium (Playwright) | screenshots | yes after `playwright install chromium` (headless shell 156.0.8078.4) | 1.64.1 | manual phone screenshots |
-| ghcr.io registry | image pull | reachable (manifest HTTP 200); image pull itself not attempted | -- | -- |
-| PyPI | pip HA, requirements | reachable | -- | -- |
+| Playwright + Chromium | screenshots | installed and launched in this session | 1.64.1 | manual phone captures |
+| ghcr.io / PyPI | image pull / pip | reachable (outbound HTTPS via agent proxy) | -- | -- |
+| Windows 11 22H2+ laptop, WSL2, mirrored networking, Hyper-V firewall | D-23 | **not available here, untested** | -- | Fallback ladder; human-verify checkpoint |
 | Google account / OAuth client | D-07 | not available here | -- | Local Calendars (seed default when no Google file) |
 | Android phone with Companion | D-06, ACCESS-* | not available here | -- | none: human-verify checkpoint |
 
-**Missing dependencies with no fallback:** her real Android phone (CA trust, one-tap, Companion server, UAT) and the developer's Google Cloud project; both are human-verify checkpoints.
-**Missing dependencies with fallback:** Docker daemon (use pip-installed HA for automated tests), Google (Local Calendar provider in the example family file).
+**Missing dependencies with no fallback:** the Windows laptop WSL host layer, her Android phone, and the developer's Google Cloud project; all are human-verify checkpoints.
+**Missing dependencies with fallback:** Docker daemon (pip-installed HA for automated seed tests), Google (Local Calendar provider in the example family file).
+
+## Validation Architecture
+
+Skipped: `workflow.nyquist_validation` is `false` in `.planning/config.json`. Within the plan, still require: pure-function tests for the D-11 tag matcher, one live Local Calendar test in a pip-installed HA 2026.10.4, a reset test (seed, mutate, reset, assert equal and `family_hub_backups/` empty), and `deploy-preview` served-hash assertions. Phase 3 owns the formal test suite.
 
 ## Security Domain
 
-Security enforcement is enabled (`security_enforcement: true`, ASVS level 1, block on high). Validation Architecture is skipped because `workflow.nyquist_validation` is `false` in `.planning/config.json`.
+Security enforcement is enabled (`security_enforcement: true`, ASVS level 1, block on high).
 
 ### Applicable ASVS Categories
 
 | ASVS Category | Applies | Standard Control |
 |---------------|---------|-----------------|
-| V2 Authentication | yes | HA accounts; generated per-environment passwords kept in gitignored files; no long-lived tokens (seed uses login flow); distinct passwords from Home; HA `ip_ban_enabled` default true |
-| V3 Session Management | yes | HA tokens; seed never stores tokens; her Companion session is wiped by reset (Pitfall 10) |
-| V4 Access Control | yes | Her account is non-admin (`system-users`); admin-gated Family Hub commands verified (she can only complete her chore and redeem her own balance); `--target` allow-list and `location_name` check refuse Home |
-| V5 Input Validation | yes | Seed validates the family file against a schema; event tag matching is exact (prefix + marker + env + window); websocket schemas are enforced by HA |
-| V6 Cryptography | yes | `openssl` CA with name constraints; never hand-roll TLS; keys 0600; HA `ssl_profile` default `modern` [VERIFIED: http config schema]; seed verifies TLS against the CA file, never `verify=False` |
-| V8/V9 Data protection & Communications | yes | Preview traffic is HTTPS on the LAN; Google OAuth token treated as a secret (0600, outside git, outside the HA volume) |
-| V14 Configuration | yes | Pinned image tag; no `privileged`, no host network; Dev bound to loopback; secrets paths covered by `dev/.ha-*` and `tools/seed/*.local.*` ignores |
+| V2 Authentication | yes | HA accounts; generated per-environment passwords in `dev/.ha-secrets/` (0600, ext4 only); no stored tokens (login flow); distinct from Home; `ip_ban_enabled` default true |
+| V3 Session Management | yes | HA tokens; seed never stores tokens; her session is wiped by reset (Pitfall 11) |
+| V4 Access Control | yes | Her account is non-admin (`system-users`); admin-gated Family Hub commands; `--target` allow-list and `location_name` check refuse Home |
+| V5 Input Validation | yes | Seed validates the family file against a schema; exact tag matching; HA enforces websocket schemas |
+| V6 Cryptography | yes | `openssl` CA with name constraints; keys 0600; `ssl_profile` default `modern`; seed verifies TLS against the CA file, never `verify=False` |
+| V8/V9 Data protection & Communications | yes | HTTPS on the LAN; Google OAuth token, secret iCal URLs and OAuth client secret are secrets (0600, outside git, outside the HA volume) |
+| V14 Configuration | yes | Pinned image tag; no `privileged`, no host network; Dev loopback; ignore rules cover `dev/.ha-*`, `dev/host.env`, `tools/seed/*.local.*` |
 
 ### Known Threat Patterns for this stack
 
 | Pattern | STRIDE | Standard Mitigation |
 |---------|--------|---------------------|
-| Seeding or deleting events on the wrong Google calendar / untagged real events | Tampering | Exact tag + marker + env + date window + calendar allow-list, dry-run default, `.ics` backup before reset, loud delete warning in Dev/Preview only (D-08, D-09, D-11) |
-| Google refresh token theft from the laptop (read/write family calendars) | Information disclosure / Tampering | File mode 0600 outside git and the HA volume; full-disk encryption on the laptop; publish the app but use a dedicated Google account or minimum-scope where possible; revoke at myaccount.google.com if lost |
-| Preview reachable on hostile Wi-Fi | Spoofing / Elevation | Dev loopback bind; Preview down script; strong passwords; no port-forward; (optional) host firewall limiting 8124 to the home subnet |
-| Name-constrained CA key compromise | Spoofing | Constraint to private ranges + localhost; key 0600, kept only on the laptop; `ca.crt` only on the phone |
+| Seeding/deleting events on the wrong Google calendar or untagged real events | Tampering | Exact tag + marker + env + date window + calendar allow-list, dry-run default, `.ics` backup (hard stop), loud delete warning in Dev/Preview, diff sync so deletes are rare (D-08, D-09, D-11) |
+| Google refresh token theft from the laptop (read/write family calendars) | Information disclosure / Tampering | 0600 files outside git and the HA volume; disk encryption; revoke at myaccount.google.com if lost; the OAuth app is unverified so only the developer's account can consent |
+| Preview reachable on hostile Wi-Fi | Spoofing / Elevation | Dev loopback bind; Hyper-V rule only for 8124; `preview-down`; strong passwords; no port-forward; optional remote-address limit on the rule |
+| Broad WSL inbound allow (`-DefaultInboundAction Allow`) | Elevation | Use a per-port Hyper-V rule instead |
+| Name-constrained CA key compromise | Spoofing | Constraint to private ranges + localhost; key 0600 on the laptop only; `ca.crt` only on phone and Windows store |
 | Seeder pointed at Home with real credentials | Tampering / Information disclosure | `--target dev|preview` allow-list, host allow-list, `location_name` assertion before auth, separate passwords |
 | Real notification to a family phone from Preview | Repudiation / DoS | `notifyTargets` allow-list check on every deploy/reset/refresh; no `media_player`; discovery integrations omitted |
-| Secrets/family names committed to the public fork | Information disclosure | `.gitignore` for local family file, env files, certs, backups, preserved entry; invented names in the example file; guide screenshots from seeded data only |
+| Secrets/family names committed to the public fork | Information disclosure | `.gitignore` for the local family file (holds real names, calendar ids and secret iCal URLs), env files, certs, backups, preserved entry; invented names in the example file; screenshots from seeded data |
+| Real events on family phones (buzz) | Annoyance (accepted, D-25) | `[PREVIEW]` tag in the title; week-anchored creation; no daily churn |
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- Real HA Core 2026.10.4 (`uv pip install homeassistant==2026.10.4`, Python 3.14.9) run with this repo's integration: onboarding, user creation, Local Calendar/To-do flows, Family Hub flow, dashboards, resources, `application_credentials`, `http/config`, user data, entity/service behaviour, headless Chromium render. Source files read from the installed package: `components/onboarding/views.py`, `const.py`; `components/http/config.py`, `websocket_api.py`; `components/lovelace/websocket.py`, `resources.py`, `const.py`; `components/application_credentials/__init__.py`; `components/google/__init__.py`, `config_flow.py`, `calendar.py`, `const.py`, `manifest.json`; `components/calendar/__init__.py`; `helpers/config_entry_oauth2_flow.py`; `bootstrap.py`; `components/default_config/manifest.json`; `components/websocket_api/commands.py`; `hass_frontend` 20260930.5 bundle (`sidebar`, `default_panel`).
-- This repository (Read this session): `config_flow.py` 1-780, `chores_websocket_api.py` 60-2300 (permission gates, kiosk, rewards, chores, routines, goals), `__init__.py` (settings, notify profiles, delete support, dashboard resource registration, setup), `const.py` (excerpts), `store.py`, `DOCUMENTATION.md` 540-755, `card/family-week-calendar-card.js` delete flow and clipboard code, `versions.env`, `hacs.json`, `manifest.json`, `.gitignore`.
-- ghcr.io registry API: `home-assistant/home-assistant:2026.10.4` manifest HTTP 200.
-- OpenSSL 3.0.13: name-constrained CA, leaf verify and negative test run locally; HA served HTTPS with it.
-- https://www.home-assistant.io/integrations/google/ (Web credentials, redirect URI, publish app, 7-day expiry)
-- https://developers.google.com/identity/protocols/oauth2#expiration (Testing = 7 days; 6-month inactivity; 100 tokens per client)
-- https://www.home-assistant.io/installation/linux (Engine >= 23.0.0, "Docker Desktop will not work", compose example)
-- https://docs.docker.com/engine/containers/start-containers-automatically/ and https://docs.docker.com/engine/network/port-publishing/
+- Real HA Core 2026.10.4 run on 2026-10-28 (onboarding, users, Local Calendar/To-do, Family Hub flow, dashboards, resources, `application_credentials`, `http/config`, user data, Chromium render) and spot re-run 2026-11-02 (onboarding, `mobile_app` registration, `lovelace/resources/create|update`, `config/core/update`, pending HTTP config). HA source read at `~/.cache/fh-hassfest/core` (2026.10.4): `components/http/config.py`, `http/websocket_api.py`, `lovelace/resources.py`, `lovelace/websocket.py`, `lovelace/__init__.py`, `config/core.py`, `google/const.py`, `google/calendar.py`, `mobile_app/manifest.json`, `default_config/manifest.json`, `helpers/instance_id.py`.
+- This repository (read this session): `custom_components/family_hub/__init__.py` (themes :385-410, `DEFAULT_GLOBAL_THEME_ID` :1571, resource registration :12190-12262, static paths :12553-12561), `config_flow.py` constants, `const.py` constants, `chores_websocket_api.py` command schemas, `card/family-week-calendar-card.js` (delete flow :23684-23700, weather :13291-13318, `</ha-card>` :16077), `card/family-hub-pantry-card.js` header, `versions.env`, `hacs.json`, `manifest.json`, `.gitignore`.
+- Compose rendering via `docker compose config` and Playwright/Chromium caching experiment, both run in this session.
+- https://learn.microsoft.com/en-us/windows/wsl/networking (mirrored mode, Hyper-V firewall commands and VMCreatorId GUID, fetched 2026-11-02)
+- https://learn.microsoft.com/en-us/windows/wsl/wsl-config (`.wslconfig`/`wsl.conf` keys and defaults, fetched 2026-11-02)
+- https://www.home-assistant.io/integrations/google/ (Web credentials, redirect URI, Publish app, fetched 2026-11-02)
+- https://developers.google.com/identity/protocols/oauth2 (refresh token expiration, fetched 2026-11-02)
+- https://www.home-assistant.io/installation/linux (Engine >= 23.0.0, Desktop unsupported)
 
 ### Secondary (MEDIUM confidence)
-- https://github.com/home-assistant/android/pull/7044 (default TrustManager + user-installed CA fallback, merged 2026-06-18) and release 2026.6.5 notes
-- https://github.com/home-assistant/android/issues/5565 (user-CA failures on e-OS/LineageOS, maintainer position, name-constrained CA workaround, 180-day vs 10-year anecdote)
-- https://companion.home-assistant.io/docs/troubleshooting/faqs (self-signed certificate FAQ, multi-server sensor note) and Android docs for adding a server (Settings > Companion app)
-- https://support.google.com/calendar/answer/37648 (secret address in iCal format)
-- https://www.docker.com/blog/addressing-time-drift-in-docker-desktop-for-mac/ and forum reports of clock drift after sleep
+- https://github.com/home-assistant/android/pull/7044 (user-CA fallback, merged 2026-06-18) and https://github.com/home-assistant/android/issues/7346 (intermediate-chain failure on 2026.6.5, open), fetched 2026-11-02
+- https://github.com/microsoft/WSL/issues/10494, /10926, /40984 and https://github.com/microsoft/wsl/issues/13416 (Docker in mirrored mode; systemd does not keep WSL alive), fetched 2026-11-02
+- https://support.google.com/calendar/answer/37648 (secret iCal address; no refresh interval stated)
+- https://developers.home-assistant.io/docs/api/native-app-integration/sending-data (webhook 410 means re-register, via search)
+- https://github.com/home-assistant/android/issues/5565 (user-CA failures on e-OS/LineageOS; name-constrained CA workaround; 2026-10-28 research)
+- https://companion.home-assistant.io/docs/troubleshooting/faqs (multi-server sensor note; 2026-10-28)
 
 ### Tertiary (LOW confidence)
-- Community report of Companion "failed to perform ssl handshake" in June 2026 (https://community.home-assistant.io/t/companion-app-home-assistant-companion-app-failed-to-perform-ssl-handshake-but-works-from-browser/1013695), unresolved in the thread.
+- WSL clock-drift threads (https://github.com/microsoft/WSL/issues/8204, /4149, https://github.com/stuartleeks/wsl-clock), via search only
+- Third-party guides for Windows "Random hardware addresses" (e.g. https://www.elevenforum.com/t/turn-on-or-off-random-hardware-addresses-for-wi-fi-networks-in-windows-11.4535)
+- Companion "failed to perform ssl handshake" community report (June 2026), unresolved
 
 ## Metadata
 
 **Confidence breakdown:**
-- Standard stack: HIGH for HA/Python/aiohttp (installed and run); MEDIUM for Docker flavour on the unknown laptop.
-- Architecture (seed order, dashboard, sidebar, HTTP promote, Google entry preservation): HIGH, executed against the pinned HA.
-- Pitfalls: HIGH for items reproduced here (HTTP revert, readiness 404, auth failure without credential, theme-builder panel id, non-admin subscriptions); MEDIUM/LOW for Docker, Android, Google behaviour.
+- Standard stack: HIGH for HA/Python/aiohttp (installed and run); MEDIUM-LOW for the Windows/WSL2 Docker host layer (documentation and issue reports only).
+- Architecture (seed order, dashboard, sidebar, HTTP promote, Google entry preservation, resource update): HIGH, executed against the pinned HA.
+- Pitfalls: HIGH for items reproduced (HTTP revert, readiness, auth failure without credential, theme-builder panel id, stale JS on soft reload); MEDIUM/LOW for WSL, Android and Google behaviour.
 
-**Research date:** 2026-10-28
-**Valid until:** 2026-11-11 (14 days: HA ships monthly and the 2026.10 `http`/`probatio` migrations are moving; Android Companion trust handling changed in June 2026). Re-verify when `HA_VERSION` changes.
+**Research date:** 2026-11-02
+**Valid until:** 2026-11-09 (7 days: WSL 2.9.x networking regressions and the Android Companion trust handling are moving; HA ships monthly). Re-verify when `HA_VERSION` or the laptop's WSL version changes.
