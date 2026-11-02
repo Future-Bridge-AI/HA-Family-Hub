@@ -84,7 +84,6 @@ Declared values (multiples of 4). Applies to anything NEW this phase adds to a `
 Exceptions:
 - Stamp right padding is **96px** (a multiple of 4), reserved so the stamp never runs under the "+" add-event button (code: `.add-event-fab` is 56px wide, `right: 18px`, `position: fixed`; 56 + 18 + 22 gap = 96).
 - Touch targets stay at the existing 44px minimum (`.modal-actions button { min-height: 44px }`). Phase 2 adds no new tappable element, so no new touch-target rule is introduced.
-- The existing 10px gap in `.modal-actions` and other existing non-multiples of 4 are left alone (not new this phase).
 
 ---
 
@@ -98,6 +97,8 @@ Four sizes and two weights, all taken from values the cards already use (code: 1
 | Body | 13px | 600 | 1.4 | Existing card body text; no new use |
 | Label | 15px | 600 | 1.2 | Existing modal buttons; native-confirm buttons are OS-styled and out of our control |
 | Heading | 18px | 700 | 1.2 | Existing modal titles; no new heading |
+
+Why 12px and 13px both appear: both are existing card sizes that this phase does not change. 13px (Body) is documented only so the executor leaves existing body text alone; it is not used by any new element. The only new text, the build stamp, uses 12px (Meta) alone, so no new element sits one pixel from another size. No size is added or invented.
 
 Display: not used in Phase 2 (no hero text). The guide (S7) is GitHub-rendered Markdown, so its type is GitHub's, not declared here.
 
@@ -159,6 +160,8 @@ One storage-mode dashboard, `url_path: family-hub`, `show_in_sidebar: true`, `re
 | 4 | Rewards | `rewards` | `mdi:star-circle` | `custom:family-hub-rewards-card` | `title: Rewards` |
 | 5 | To-dos | `todos` | `mdi:format-list-checks` | `custom:family-hub-todo-card` | `title: To-dos`; `entities`: the seeded user-facing lists (see S5) |
 | 6 | Recipes | `recipes` | `mdi:chef-hat` | `custom:family-hub-recipe-box-card` | `title: Recipes` |
+
+Focal point (Calendar, the view that opens first): the **today column** of the week grid, drawn with the existing accent outline and accent day number (`.day-col.today`, `.today .day-header .num`; accent `#c9a227` on `midnight`). It is the one element that draws the eye first; the build stamp (12px, `--fc-text`, bottom row) and the "+" button are deliberately secondary. No new focal element is added.
 
 Notes:
 - Order follows D-18 (Calendar, Today, Chores, Rewards, To-dos, Recipes). The Pantry slot of D-18 is dropped while Grocy is off (A3).
