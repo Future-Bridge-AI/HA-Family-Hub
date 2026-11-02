@@ -72,7 +72,29 @@ Plans:
   4. The developer checks a trivial visible change (e.g. a title text) in Dev, which starts with one command on the same pretend data and shows edits live. The developer then runs `deploy-preview <branch>`. After a refresh, she sees the new text and a newer build stamp in Preview and confirms it.
   5. After she has ticked chores and redeemed rewards, one `reset-preview` brings back the original pretend week with no old data resurrected. On a fresh Preview the Family Hub dashboard and cards are in place without manual setup, and Dev resets the same way.
 
-**Plans:** TBD
+**Plans:** 9 plans
+
+Plans:
+**Wave 1**
+- [ ] 02-01-PLAN.md — One-command Dev over HTTPS (compose, local CA, seed bootstrap, dev-cards), LiveHA test harness, package-legitimacy checkpoint (has checkpoint)
+- [ ] 02-02-PLAN.md — Calendar card: build stamp footer and loud delete confirm for real Google events (D-09, D-20)
+- [ ] 02-03-PLAN.md — Reword ROADMAP, REQUIREMENTS and PROJECT for the laptop host and the real Google calendars (D-03, D-07, D-28)
+
+**Wave 2** *(blocked on 02-01)*
+- [ ] 02-04-PLAN.md — Seed the pretend family: users, lists, Family Hub entry, content, dashboard, her sidebar, isolation verify
+- [ ] 02-05-PLAN.md — Tagged seed events: exact D-11 matcher, week-anchored diff sync, dry run, live Local Calendar proof
+
+**Wave 3** *(blocked on 02-02, 02-04, 02-05)*
+- [ ] 02-06-PLAN.md — deploy-preview with verified stamp and hand-off note, reset-preview / dev-reset, refresh-preview
+
+**Wave 4** *(blocked on 02-06)*
+- [ ] 02-07-PLAN.md — Google calendars with guardrails: kept sign-in across resets, chosen calendars only, .ics backups with hard stop
+
+**Wave 5** *(blocked on 02-07)*
+- [ ] 02-08-PLAN.md — Laptop host layer: doctor, Windows setup script, runbook, real bring-up and overnight check (has checkpoint)
+
+**Wave 6** *(blocked on 02-08)*
+- [ ] 02-09-PLAN.md — Her phone, the Getting started guide with screenshots, her routine on her own, and the change she asks for (has checkpoint)
 **UI hint**: yes
 **Research:** NEEDS research-phase before planning (`/gsd-plan-phase --research-phase 2`). Open questions from research/SUMMARY.md:
 - Dashboard and resource creation path: storage-mode `lovelace/dashboards/create` or a YAML-mode dashboard.
@@ -142,7 +164,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4. Phase 3 depends only on Ph
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Clean Foundation | 7/7 | Complete    | 2026-10-27 |
-| 2. Dev + Family Preview | 0/TBD | Not started | - |
+| 2. Dev + Family Preview | 0/9 | Planned | - |
 | 3. Safety Net | 0/TBD | Not started | - |
 | 4. Family-Led Customisation Loop | 0/TBD | Not started | - |
 
