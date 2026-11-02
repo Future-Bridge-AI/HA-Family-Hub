@@ -57,6 +57,17 @@ non-admin access from her Android phone, plus a plain-language Getting started g
 - **D-21:** The Getting started guide is **Markdown in `docs/family/`** with Preview screenshots, readable on GitHub from her phone and printable or saveable as PDF. It is not published to the docs site in this phase. It includes the Android steps: install Companion, trust the certificate, add the Preview server, sign in.
 - **D-22:** The first end-to-end change (ACCESS-05) is **a tiny wording or title change she picks**, recorded in her words.
 
+### Answers to the research open questions (02-RESEARCH.md §Open Questions, answered 2026-11-02)
+- **D-23:** The laptop runs **Windows**. Dev and Preview run in **WSL2 (Ubuntu) with Docker Engine installed inside WSL2**, not Docker Desktop (HA does not support Desktop). Her phone reaches Preview through **WSL mirrored networking** (Windows 11 22H2+), with a Windows Firewall rule for 8124. This refines D-04: tooling stays Linux-shell and host-agnostic; Windows/WSL2 is the primary host. Research did not test Windows/WSL2: the planner adds `scripts/doctor` checks (WSL version, mirrored mode, Engine not Desktop, clock) and a human-verify checkpoint on the laptop. `restart: unless-stopped` only helps once WSL and Docker are running, so start-on-login for WSL/Docker must be covered.
+- **D-24:** The laptop is on **Wi-Fi**. The guide/doctor tells the developer to turn off Windows "random hardware addresses" for the home network so the D-05 router reservation holds.
+- **D-25:** Seeded `[PREVIEW]`/`[DEV]` events go onto the **real family calendars** (as D-11), and the developer **accepts that family phones may buzz** from Google default reminders. No dedicated seed calendar.
+- **D-26:** The **developer's own Google account** owns the Google Cloud project and OAuth client, and the OAuth app is **published** (avoids the 7-day refresh-token expiry that would break D-10).
+- **D-27:** Having to **sign in again on Preview after each `reset-preview`** is acceptable. The guide documents the re-login; test on her phone what exactly happens (re-login vs re-adding the server).
+- **D-28:** `refresh-preview` runs on a **daily schedule plus at laptop start-up**, and manually. Reword ROADMAP success criterion 2 "whenever she opens Preview" to "at agreed times" (with D-03).
+- **D-29:** Preview uses the **`midnight`** built-in theme.
+- **D-30:** D-08 backups use each calendar's **secret iCal address**, stored in the gitignored family file, with a non-empty check and a hard stop on failure.
+- **D-31:** HA core settings (time zone, country, currency, units) for Dev and Preview come from the **gitignored host env file**; reconcile with Home in Phase 4.
+
 ### Claude's Discretion
 - Exact `[PREVIEW]`/`[DEV]` tag wording and the local family-file schema/path.
 - Which distinct built-in theme Preview uses.
