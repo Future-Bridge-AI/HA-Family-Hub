@@ -1,0 +1,18 @@
+# Minimal Home Assistant config for the Family Hub Dev and Preview environments.
+#
+# Why these choices:
+# - No default_config: it pulls in discovery, cloud, Bluetooth and similar integrations that
+#   do not belong in an isolated Dev or Preview.
+# - No homeassistant core block: any core key here switches HA's config source to YAML, and
+#   then the seed tool could not set the location name or the host-specific values (time zone,
+#   units, ...) through config/core/update. The seed tool owns them (tools/seed/bootstrap.py).
+# - No server_port: the container maps the port, and any http YAML is only a pending config
+#   until it is promoted (the seed tool promotes it right after onboarding).
+frontend:
+lovelace:
+config:
+my:
+mobile_app:
+http:
+  ssl_certificate: /ssl/fullchain.pem
+  ssl_key: /ssl/privkey.pem
