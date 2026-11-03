@@ -117,6 +117,28 @@ function __fhBuildStampText(build, locationName) {
   }
   return /\bDEV\b/.test(String(locationName || "")) ? "Dev · live" : "";
 }
+// Second, loud confirm text for deleting a REAL Google event from Dev or
+// Preview (those instances share the family's real Google calendars one-way).
+// Returns null when no extra prompt is wanted: not a Dev/Preview instance
+// (the seed names the HA location "Family Hub DEV" / "Family Hub PREVIEW",
+// whole words, case-sensitive), a non-Google calendar, or a pretend event
+// carrying the exact seed tag.
+function __fhRealCalendarDeleteWarning(locationName, platform, summary, personName) {
+  const m = /\b(PREVIEW|DEV)\b/.exec(String(locationName || ""));
+  if (!m || platform !== "google") return null;
+  const title = String(summary || "");
+  if (title.startsWith("[PREVIEW] ") || title.startsWith("[DEV] ")) return null;
+  const env = m[1] === "PREVIEW" ? "Preview" : "Dev";
+  const chars = Array.from(title);
+  const shown = chars.length > 80 ? chars.slice(0, 80).join("") + "…" : title;
+  return [
+    "THIS IS THE REAL FAMILY CALENDAR.",
+    "",
+    "You are in " + env + ', but "' + shown + '" is on ' + String(personName || "") + "'s real Google Calendar. Deleting it here deletes it for the whole family, and Family Hub cannot undo it.",
+    "",
+    "Delete it anyway?",
+  ].join("\n");
+}
 // __FH_TESTABLE_HELPERS_END
 let __fhBuildStampLogged = false;
 
@@ -13318,7 +13340,7 @@ async _getCalendarDeleteSupport(entityId) {
 if (!this._calendarDeleteSupport) this._calendarDeleteSupport = {};
 const cached = this._calendarDeleteSupport[entityId];
 if (cached && Date.now() - (cached._at || 0) < 10 * 60 * 1000) return cached;
-if (!this._hass) return { supported: false, updateSupported: false, createSupported: false, integrationName: "your calendar's own app" };
+if (!this._hass) return { supported: false, updateSupported: false, createSupported: false, integrationName: "your calendar's own app", platform: null };
 let result;
 try {
 const res = await this._hass.connection.sendMessagePromise({
@@ -13330,6 +13352,9 @@ supported: !!res.supported,
 updateSupported: !!res.update_supported,
 createSupported: !!res.create_supported,
 integrationName: res.integration_name || "your calendar's own app",
+// entity registry platform from the backend (e.g. "google"); the Dev /
+// Preview loud delete confirm keys on it.
+platform: res.platform || null,
 // v1.168.60: true only when the backend explicitly reported
 // create_supported - lets the Add Event calendar list and the
 // event-info read-only note act on a REAL "this calendar can't take
@@ -23762,6 +23787,14 @@ this._t(
 )
 )
 return;
+// Dev / Preview only: a second, loud yes before removing a real Google event.
+const realCalendarWarning = __fhRealCalendarDeleteWarning(
+this._hass && this._hass.config && this._hass.config.location_name,
+support.platform,
+detail.summary,
+detail.personName
+);
+if (realCalendarWarning && !window.confirm(realCalendarWarning)) return;
 btn.disabled = true;
 btn.textContent = this._t("event_info.deleting", "Deleting…");
 try {
