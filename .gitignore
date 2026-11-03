@@ -9,3 +9,5 @@ node_modules/
 family_hub_backups/
 .storage/
 dev/.ha-*
+dev/host.env
+tools/seed/*.local.*
