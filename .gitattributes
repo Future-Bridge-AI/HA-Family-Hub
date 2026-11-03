@@ -1,0 +1,10 @@
+# Normalise text files, and force LF where a stray CR breaks things: a Windows-side clone must not
+# turn scripts into "bash\r: No such file or directory" failures or corrupt YAML and env files.
+* text=auto
+*.sh text eol=lf
+scripts/* text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.py text eol=lf
+*.env.example text eol=lf
+*.ps1 text eol=lf

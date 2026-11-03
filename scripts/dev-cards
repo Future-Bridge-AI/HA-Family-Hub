@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Make card edits show up in Dev: re-register the Lovelace resources with the new file hashes.
+set -euo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
+fh_load_env
+fh_seed dev resources-sync
+echo "Refresh the browser tab (normal refresh is enough now). If it still shows old code: Ctrl+Shift+R."

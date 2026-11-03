@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Pick up Python edits in Dev: restart the container, then wait until Dev answers again.
+set -euo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
+fh_load_env
+fh_info "Restarting Dev"
+fh_compose dev restart ha
+fh_info "Waiting for Dev to answer"
+fh_seed dev wait
+echo "Dev is back: https://127.0.0.1:8130 (Family Hub DEV)"
