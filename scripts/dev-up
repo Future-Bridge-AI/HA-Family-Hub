@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Start Family Hub DEV: Docker on the pinned image, https://127.0.0.1:8130, the working copy's
+# integration mounted read-only. Safe to run again while Dev is up (changes nothing).
+set -euo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
+fh_load_env
+fh_ensure_certs
+fh_ensure_config dev
+fh_info "Starting Dev (compose project familyhub-dev)"
+fh_compose dev up -d
+fh_info "Waiting for Dev and preparing it"
+fh_seed dev bootstrap
+echo "Dev is ready: https://127.0.0.1:8130 (Family Hub DEV)"

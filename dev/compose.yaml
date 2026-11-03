@@ -1,0 +1,16 @@
+# Base service shared by Dev (compose.dev.yaml) and Preview (compose.preview.yaml, added later).
+# Run through scripts/lib.sh fh_compose, which passes:
+#   --env-file versions.env --env-file dev/host.env -f dev/compose.yaml -f dev/compose.<env>.yaml
+# Bridge networking only: no privileged, no network_mode, no devices. The overlays add the config
+# volume, the port and the restart policy. Relative paths resolve against this file's directory.
+services:
+  ha:
+    image: ghcr.io/home-assistant/home-assistant:${HA_VERSION:?set in versions.env}
+    environment:
+      TZ: "${TZ:?set in dev/host.env}"
+      # Keep the bind-mounted working copy free of __pycache__ debris.
+      PYTHONDONTWRITEBYTECODE: "1"
+    stop_grace_period: 60s
+    volumes:
+      # Local CA certificates from scripts/make-certs, for HTTPS from day one.
+      - ./.ha-certs:/ssl:ro
