@@ -2,7 +2,7 @@
 
 ## Overview
 
-This milestone turns the upstream Family Hub integration into our own fork that is safe to change, with a Family Preview the family product owner can use every day. It runs in four steps. First, clean the repo so edits land in the files Home Assistant actually serves (invisible to the family). Second, stand up Dev and an always-on Family Preview with our pretend family's week, which is the first thing she sees. Third, add a test and CI safety net so changes cannot quietly break Preview. Fourth, run the family-led loop: she asks in her own words, tries the change in Preview, signs off, and only then does Home get a tagged release. Phases 1 and 2 are prerequisites. Phase 3 depends only on Phase 1 and may overlap the tail of Phase 2. From Phase 2 on, every phase ends in something she can try in Preview, and its success criteria are written as things she does and sees.
+This milestone turns the upstream Family Hub integration into our own fork that is safe to change, with a Family Preview the family product owner can use every day. It runs in four steps. First, clean the repo so edits land in the files Home Assistant actually serves (invisible to the family). Second, stand up Dev and a Family Preview (on the developer's laptop for now, available at agreed times) with our pretend family's week, which is the first thing she sees. Third, add a test and CI safety net so changes cannot quietly break Preview. Fourth, run the family-led loop: she asks in her own words, tries the change in Preview, signs off, and only then does Home get a tagged release. Phases 1 and 2 are prerequisites. Phase 3 depends only on Phase 1 and may overlap the tail of Phase 2. From Phase 2 on, every phase ends in something she can try in Preview, and its success criteria are written as things she does and sees.
 
 Note: `v1.0` below is the GSD planning milestone label, not the integration's release version. The fork continues the integration's own numbering above 1.168.85 (see FOUND-07).
 
@@ -19,7 +19,7 @@ Note: `v1.0` below is the GSD planning milestone label, not the integration's re
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Clean Foundation** - One served copy of every card, panel and translation, no tracked build junk, and our own fork identity, version scheme and pinned HA version (completed 2026-10-27)
-- [ ] **Phase 2: Dev + Family Preview** - One-command Dev plus an always-on, isolated Family Preview with seeded pretend family data, `deploy-preview` / `reset-preview`, and her one-tap non-admin access
+- [ ] **Phase 2: Dev + Family Preview** - One-command Dev plus an isolated Family Preview on the developer's laptop (available at agreed times), with seeded pretend family data, `deploy-preview` / `reset-preview`, and her one-tap non-admin access
 - [ ] **Phase 3: Safety Net** - Python engine and setup-smoke tests, card smoke tests, Preview screenshots, and green CI that blocks regressions before they reach Preview
 - [ ] **Phase 4: Family-Led Customisation Loop** - She ranks the backlog, asks in her own words, signs off in Preview, and Home receives only tagged, rehearsed, rollback-ready releases
 
@@ -66,8 +66,8 @@ Plans:
 **Depends on:** Phase 1
 **Requirements:** DEV-01, DEV-02, DEV-03, PREV-01, PREV-02, PREV-03, PREV-04, PREV-05, PREV-06, PREV-07, PREV-08, ACCESS-01, ACCESS-02, ACCESS-03, ACCESS-04, ACCESS-05
 **Success Criteria** (what must be TRUE):
-  1. She can open Family Preview at any time, in one tap from her phone (or from a bookmarked tablet), at its own stable home-network address. She signs in with her own non-admin account and sees only the Family Hub dashboard. It is clearly labelled PREVIEW, with its own name and theme, so she never mistakes it for Home.
-  2. Whenever she opens Preview, it shows a realistic current week for our pretend family: members, calendars, events, meals, chores, rewards and to-do lists. Nothing she does there sends a reminder, alert, Daily Digest, nudge or timer alarm to a real phone or speaker, or touches the real family calendars and lists.
+  1. She can open Family Preview at the times we agree, whenever the developer's laptop is on and at home (D-03), in one tap from her phone (or from a bookmarked tablet), at its own stable home-network address. She signs in with her own non-admin account and sees only the Family Hub dashboard. It is clearly labelled PREVIEW, with its own name and theme, so she never mistakes it for Home.
+  2. At those agreed times Preview shows a realistic current week for our pretend family: members, calendars, events, meals, chores, rewards and to-do lists, kept current by a daily and start-up refresh (D-28). Nothing she does there sends a reminder, alert, Daily Digest, nudge or timer alarm to a real phone or speaker, and Preview never touches the family's real lists. Its calendar is connected read/write to a chosen list of the family's real Google calendars (D-07): pretend events carry a [PREVIEW] tag, the tools only ever remove tagged events, every connected calendar is backed up before deploy and reset, and deleting a real event asks twice (D-08 to D-11).
   3. Using only the plain-language Getting started guide in `docs/family/`, she opens Preview on her own, finds today's plan, ticks a chore and redeems a reward.
   4. The developer checks a trivial visible change (e.g. a title text) in Dev, which starts with one command on the same pretend data and shows edits live. The developer then runs `deploy-preview <branch>`. After a refresh, she sees the new text and a newer build stamp in Preview and confirms it.
   5. After she has ticked chores and redeemed rewards, one `reset-preview` brings back the original pretend week with no old data resurrected. On a fresh Preview the Family Hub dashboard and cards are in place without manual setup, and Dev resets the same way.
@@ -97,7 +97,7 @@ Plans:
 **Wave 6** *(blocked on 02-09)*
 - [ ] 02-10-PLAN.md — Her phone, the Getting started guide with screenshots, her routine on her own, and the change she asks for (has checkpoint)
 **UI hint**: yes
-**Research:** NEEDS research-phase before planning (`/gsd-plan-phase --research-phase 2`). Open questions from research/SUMMARY.md:
+**Research:** Done in 02-RESEARCH.md (2026-11-02); the questions below are answered there.
 - Dashboard and resource creation path: storage-mode `lovelace/dashboards/create` or a YAML-mode dashboard.
 - Which `family_hub/*` commands can seed chores, rewards, goals, routines, meals and PINs without a kiosk session.
 - Driving the 11-step config flow, including the `member_profile` loops.
@@ -105,10 +105,10 @@ Plans:
 - HTTPS secure-context differences.
 - Preview host hardware and the Companion second-server setup.
 
-**Decisions due:**
-- Where Preview runs: an always-on Docker host, not the laptop.
-- Preview is a separate instance from Home.
-- How she reaches it: LAN-only (Tailscale deferred).
+**Decisions (made in 02-CONTEXT.md):**
+- Where Preview runs: the developer's Windows laptop, in WSL2 with Docker Engine, available whenever the laptop is on and at home; always-on returns once Preview moves to a dedicated box (D-01, D-03, D-23).
+- Preview is a separate instance from Home and never shares a volume, core.uuid, credentials or config with it (D-06a).
+- How she reaches it: LAN-only HTTPS at the laptop's reserved address, through the Home Assistant app with Preview added as a second server (D-05, D-06, D-16); Tailscale stays deferred.
 
 ### Phase 3: Safety Net
 

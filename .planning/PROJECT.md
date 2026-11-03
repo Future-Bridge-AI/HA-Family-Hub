@@ -55,7 +55,7 @@ the real calendars and lists.
 
 **Dev + Family Preview environments (first thing she sees)**
 - [ ] Dev environment: Docker Compose (or devcontainer) running Home Assistant with this integration mounted from the working copy, plus demo seed data
-- [ ] Family Preview: a separate, always-on HA instance with its own config volume, never connected to the real family calendars
+- [ ] Family Preview: a separate HA instance with its own config volume, on the developer's laptop for now and available at agreed times (D-01, D-03), connected read/write only to a chosen list of the family's real Google calendars with guardrails (D-07 to D-11)
 - [ ] One-command `deploy-preview` that installs `custom_components/family_hub` from a chosen branch and restarts Preview HA
 - [ ] Scripted seed data: Local Calendar per family member, the required `todo.*` lists, a realistic week of events, meals, chores, rewards, and HA users per family member (hers non-admin), plus a `reset-preview` command
 - [ ] Her access set up (HA Companion app and/or bookmarked tablet kiosk dashboard) so it feels like an app, not a dev tool
@@ -75,9 +75,9 @@ the real calendars and lists.
 
 ### Out of Scope
 
-- Cloud services or a hosted backend — everything stays local on Home Assistant, matching the upstream design
+- Cloud services or a hosted backend — everything stays local on Home Assistant, matching the upstream design, apart from the Google Calendar API that Dev and Preview use (D-02, D-07)
 - Testing changes directly on the real Home setup — all experiments go to Dev or Preview first; Home only receives changes she has signed off
-- Using the real family calendars or lists in Preview — Preview uses seeded pretend data so trying things can't break anything
+- Using the family's real data in Preview, other than the chosen Google calendars (D-07): Preview uses seeded pretend data so trying things can't break anything
 - Big-bang rewrite of `__init__.py` (~13k lines) or the calendar card (~31k lines) — new work extracts focused modules instead of growing the monoliths, but no wholesale refactor this milestone
 - Getting into the default HACS store — remains installable as a custom repository
 - Relicensing — derivative work stays GPLv3
@@ -100,8 +100,8 @@ the real calendars and lists.
 
 | Environment | Who uses it | Data | How it gets updated |
 |---|---|---|---|
-| **Dev** | Developer | Throwaway demo data | Integration folder mounted from the working copy; restart HA for Python changes, hard-refresh for card JS |
-| **Family Preview** | Wife + developer, on a real tablet/phone | Realistic seeded family data, never the real family calendars | `deploy-preview` from a branch, after checking in Dev |
+| **Dev** | Developer | Throwaway demo data | Integration folder mounted read-only from the working copy; `scripts/dev-restart` for Python changes, `scripts/dev-cards` then a normal refresh for card JS |
+| **Family Preview** | Wife + developer, on her Android phone (Home Assistant app, Preview as a second server) | Realistic seeded pretend family data; its calendar is connected read/write to chosen real Google calendars, with tagged pretend events (D-07) | `deploy-preview` from a branch, after checking in Dev |
 | **Home** (production) | Whole family, wall tablet | Real calendars, real to-do lists | Only after she has tried the change in Preview and said yes |
 
 ## Constraints
@@ -109,8 +109,8 @@ the real calendars and lists.
 - **License**: GPLv3 — the fork is a derivative work; distribution must stay GPLv3 and keep upstream credit
 - **Platform**: Home Assistant custom integration, HA >= 2024.12.0 (declared in hacs.json; Dev, Preview and tests pinned to 2026.10.4 in versions.env), HACS custom repository — the install path planned for Home (no Home install exists yet, so the first fork release v2.0.0 is a fresh install)
 - **Tech stack**: Python on HA Core APIs (no extra Python deps), vanilla JS web components with no bundler — keep the existing build-free delivery
-- **Locality**: everything runs locally; no cloud services — upstream design and family privacy
-- **Safety**: Preview must be isolated from the family's real HA and real calendars — experiments must never break the real setup
+- **Locality**: everything runs locally; no cloud services, apart from the Google Calendar API used by Dev and Preview for the chosen family calendars (D-02, D-07): upstream design and family privacy
+- **Safety**: Preview must be isolated from the family's real HA and never send real notifications; its only link to real data is the chosen Google calendars, behind tags, backups and a loud delete confirm (D-07 to D-11). Experiments must never break the real setup
 - **Usability**: every phase from the Preview phase on ends in something she can try; acceptance criteria and UAT are written as things she does and sees in the app — she is non-technical and the real user
 - **Code health**: changes to `__init__.py` or the calendar card prefer extracting focused modules over growing the monoliths — no tests exist yet, so large files are risky to change
 - **Served paths**: only `card/` and `panel/` JS is served — edits must target those copies
@@ -123,10 +123,11 @@ the real calendars and lists.
 | Wife is the product owner; her Preview sign-off gates every release to Home | She is the real user; changes must be visible and trusted before reaching the family | — Pending |
 | Three environments: Dev, Family Preview, Home | Experiments never touch the family's real setup | — Pending |
 | Clean foundation first, then Preview, then tests/CI, then feature loop (Phase 3 may overlap Phase 2's tail) | Stale duplicates and translations make edits land in the wrong place; she should see a working app early | ✓ Phase 1 done 2026-10-27: one served copy of every file, nine languages in `translations/` |
-| Preview uses scripted seed data with a reset command | Repeatable, resettable, never the real calendars | — Pending |
-| Where Preview runs (always-on home machine via Docker Compose recommended vs laptop) | Must be always-on for her | — Pending (decide in Preview phase) |
-| Separate Preview HA instance if a Home HA already runs | Isolation from real setup | — Pending (decide in Preview phase) |
-| How she reaches Preview (home Wi-Fi only vs Tailscale / Nabu Casa) | Simplicity vs access from anywhere | — Pending (decide in Preview phase) |
+| Preview uses scripted seed data with a reset command | Repeatable, resettable; the only real data it touches is the chosen Google calendars, through tagged events (D-07, D-11) | — Pending |
+| Dev and Preview connect read/write to a chosen list of the family's real Google calendars (D-07) | The developer wants the real week in Preview; a Google Cloud project with a published OAuth app is the one cloud exception (D-02, D-26) | ✓ Decided in Phase 2: one-way (a deleted real event is gone unless restored from the D-08 backup); guarded by D-08 backups, D-09 loud confirm, D-10 kept sign-in, D-11 exact tags |
+| Where Preview runs | Available at agreed times is enough for now; no extra hardware yet | ✓ Decided in Phase 2: the developer's Windows laptop in WSL2 + Docker Engine, its own container, volume and port 8124 (Dev 8130); restart unless-stopped plus a Windows keep-alive task; always-on returns with a dedicated box (D-01, D-03, D-23) |
+| Separate Preview HA instance if a Home HA already runs | Isolation from real setup | ✓ Decided in Phase 2: always a separate instance; Home never shares a volume, core.uuid, credentials or config with Dev or Preview (D-06a) |
+| How she reaches Preview (home Wi-Fi only vs Tailscale / Nabu Casa) | Simplicity vs access from anywhere | ✓ Decided in Phase 2: home Wi-Fi only, HTTPS from a local CA at the laptop's DHCP-reserved address, Home Assistant app with Preview as a second server (D-05, D-06, D-16); Tailscale deferred (ENVX-01) |
 | Fork versioning: continue 1.168.x or start own scheme | Manifest/changelog already disagree upstream | ✓ Decided in Phase 1 (D-19): next version 2.0.0 in manifest.json; git tags are v2.0.0-style vX.Y.Z equal to manifest.json; every release is strictly greater than the previous one (numeric comparison) and no published number is reused; HACS update detection needs a published GitHub Release (Phase 4 REL-01) |
 | Test harness: `pytest-homeassistant-custom-component` preferred over a hand-built stub | Real HA test fixtures | — Pending |
 | Home Assistant versions: pinned 2026.10.4 for Dev, Preview and tests (versions.env); minimum 2024.12.0 in hacs.json | 2024.12.0 is the first release with every API the code imports (StaticPathConfig 2024.7, calendar DATA_COMPONENT 2024.10, no-arg OptionsFlow config_entry 2024.12); a higher floor could rule out a future Home install on older Home Assistant hardware or images | ✓ Decided in Phase 1 (D-20, D-21) |
