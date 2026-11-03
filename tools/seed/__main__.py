@@ -14,6 +14,7 @@ import sys
 from typing import Awaitable, Callable, Optional
 
 from . import bootstrap as bootstrap_mod
+from . import resources as resources_mod
 from .client import HAClient, SeedError
 from .creds import CredentialStore
 from .envs import ENVIRONMENTS, Env, GuardRefused, base_url, get_env
@@ -64,10 +65,35 @@ async def _cmd_bootstrap(ctx: Context) -> int:
     return 0
 
 
+# Where each target's served cards live: Dev mounts the working copy, Preview runs an exported copy.
+DEFAULT_INTEGRATION_DIR = {
+    "dev": "custom_components/family_hub",
+    "preview": "dev/.ha-preview/custom_components/family_hub",
+}
+
+
+def _configure_resources_sync(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--integration-dir", default=None, help="directory holding card/ and panel/")
+    parser.add_argument("--dry-run", action="store_true", help="show what would change, write nothing")
+
+
+async def _cmd_resources_sync(ctx: Context) -> int:
+    integration_dir = ctx.args.integration_dir or DEFAULT_INTEGRATION_DIR[ctx.env.key]
+    async with ctx.client() as client:
+        token, _ws = await bootstrap_mod.open_admin(client, ctx.env, ctx.creds())
+        await resources_mod.sync(client, token, integration_dir, apply=not ctx.args.dry_run, say=say)
+    return 0
+
+
 COMMANDS: dict[str, Command] = {
     "wait": Command("wait until Home Assistant answers over verified TLS", _cmd_wait),
     "bootstrap": Command(
         "onboard, promote the http config and name the instance", _cmd_bootstrap
+    ),
+    "resources-sync": Command(
+        "point each card's lovelace resource at the hash of the file being served",
+        _cmd_resources_sync,
+        _configure_resources_sync,
     ),
 }
 

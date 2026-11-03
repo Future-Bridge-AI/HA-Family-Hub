@@ -214,6 +214,25 @@ async def apply_core_config(ws: HAWebSocket, env: Env, say: Say) -> None:
     say("location_name = %s" % env.location_name)
 
 
+async def open_admin(client: HAClient, env: Env, creds: CredentialStore) -> tuple[str, HAWebSocket]:
+    """Log in as the tool's admin on an already onboarded instance, after the identity guard.
+
+    Every command that writes to an existing instance starts here, so the location_name check
+    happens before its first write.
+    """
+    if not creds.exists():
+        raise SeedError(
+            "auth",
+            "no credentials for target %s in %s: run bootstrap first" % (env.key, creds.path),
+        )
+    admin = creds.admin()
+    token = await client.login(admin["username"], admin["password"])
+    ws = await client.ws(token)
+    config = (await ws.call("get_config"))["result"]
+    check_identity(config, env, fresh=False)
+    return token, ws
+
+
 async def bootstrap(
     client: HAClient, env: Env, creds: CredentialStore, timeout: float, say: Say
 ) -> HAWebSocket:
