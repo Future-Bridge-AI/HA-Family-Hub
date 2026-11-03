@@ -30,7 +30,7 @@ Requirements for milestone 1. Each maps to one roadmap phase.
 
 ### Family Preview environment
 
-- [ ] **PREV-01**: She can reach an always-on Family Preview at a stable address on the home network, running as a separate HA instance that shares nothing with the Home setup (own config, own identity, bridge networking, discovery disabled)
+- [ ] **PREV-01**: She can reach Family Preview at a stable address on the home network at agreed times, whenever the developer's laptop is on and at home (always-on returns when Preview moves to a dedicated box), running as a separate HA instance that shares nothing with the Home setup (own config, own identity, bridge networking, discovery disabled)
 - [ ] **PREV-02**: She can tell at a glance she is in Preview, not the real app — distinct name, theme and server entry
 - [ ] **PREV-03**: Nothing done in Preview reaches the real world through notifications (no reminders, alerts, Daily Digest, nudges or timer alarms are delivered to real phones or speakers), and Preview never connects to the family's real lists. Its calendar connects read/write only to a chosen list of the family's real Google calendars (D-07), guarded by tagged pretend events, dated .ics backups before deploy and reset, and a loud second confirm before a real event is deleted (D-08 to D-11)
 - [ ] **PREV-04**: When she opens Preview she sees a realistic current week — our family members, calendars, events, meals, chores, rewards and the to-do lists the integration needs — generated relative to today so it never goes stale
@@ -175,4 +175,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-10-26*
-*Last updated: 2026-10-26 after roadmap creation (traceability mapped)*
+*Last updated: 2026-11-02 after Phase 2 discuss (PREV-01, PREV-03 and Out of Scope reworded per D-03, D-07)*
