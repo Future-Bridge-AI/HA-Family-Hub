@@ -32,7 +32,7 @@ Requirements for milestone 1. Each maps to one roadmap phase.
 
 - [ ] **PREV-01**: She can reach an always-on Family Preview at a stable address on the home network, running as a separate HA instance that shares nothing with the Home setup (own config, own identity, bridge networking, discovery disabled)
 - [ ] **PREV-02**: She can tell at a glance she is in Preview, not the real app — distinct name, theme and server entry
-- [ ] **PREV-03**: Nothing done in Preview reaches the real world — no reminders, alerts, Daily Digest, nudges or timer alarms are delivered to real phones or speakers, and Preview never connects to the real family calendars or lists
+- [ ] **PREV-03**: Nothing done in Preview reaches the real world through notifications (no reminders, alerts, Daily Digest, nudges or timer alarms are delivered to real phones or speakers), and Preview never connects to the family's real lists. Its calendar connects read/write only to a chosen list of the family's real Google calendars (D-07), guarded by tagged pretend events, dated .ics backups before deploy and reset, and a loud second confirm before a real event is deleted (D-08 to D-11)
 - [ ] **PREV-04**: When she opens Preview she sees a realistic current week — our family members, calendars, events, meals, chores, rewards and the to-do lists the integration needs — generated relative to today so it never goes stale
 - [ ] **PREV-05**: Developer can put any branch onto Preview with one command (`deploy-preview <branch>`), which restarts Preview and verifies the new cards are actually being served
 - [ ] **PREV-06**: Developer can return Preview to the known seeded state with one command (`reset-preview`), which also clears the integration's own backups so old data cannot come back
@@ -101,9 +101,9 @@ Deferred. Tracked but not in the current roadmap — she decides what gets promo
 
 | Feature | Reason |
 |---------|--------|
-| Cloud services / hosted backend | Everything stays local on Home Assistant (upstream design, family privacy) |
+| Cloud services / hosted backend | Everything stays local on Home Assistant (upstream design, family privacy), apart from the Google Calendar API that Dev and Preview use (D-02, D-07) |
 | Testing changes on the real Home setup | All experiments go to Dev or Preview; Home only gets signed-off releases |
-| Real family calendars or data in Preview | Seeded pretend data only, so trying things can't break anything |
+| Real family data in Preview, other than the chosen Google calendars (D-07) | Seeded pretend data only, so trying things can't break anything; the calendar exception is guarded by tags, backups and a loud delete confirm |
 | Admin account for her | Non-admin keeps Preview simple and safe |
 | Using the built-in self-updater on Home | No checksum/signature check and it bypasses the sign-off gate |
 | Auto-deploy / auto-promote to Home | Her sign-off is a manual gate by design |
