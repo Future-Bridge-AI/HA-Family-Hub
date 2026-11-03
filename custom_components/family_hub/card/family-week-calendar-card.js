@@ -99,6 +99,49 @@ var __fhSweep = function (root) {
 };
 // -------------------------------------------------------------------------
 
+// Build stamp (Dev / Preview). The three double-underscore build values below
+// are filled in by scripts/deploy-preview in the exported copy only; in the
+// served Home copy they stay literal, which makes the stamp render nothing.
+// Keep the block between the two marker lines free of DOM access - the node
+// check in tools/card-checks reads it as plain text and evaluates it alone.
+// __FH_TESTABLE_HELPERS_BEGIN
+const __FH_BUILD = { env: "__FH_BUILD_ENV__", version: "__FH_BUILD_VERSION__", deployed: "__FH_BUILD_TIME__" };
+function __fhBuildStampText(build, locationName) {
+  // A value is "unsubstituted" while it still looks like a build placeholder.
+  // This pattern deliberately contains no complete placeholder, so deploy
+  // substitution can never rewrite it.
+  const isPlaceholder = (v) => typeof v !== "string" || v === "" || /^__FH_BUILD_[A-Z]+__$/.test(v);
+  const b = build || {};
+  if (!isPlaceholder(b.env) && !isPlaceholder(b.version) && !isPlaceholder(b.deployed)) {
+    return b.env + " · " + b.version + " · " + b.deployed;
+  }
+  return /\bDEV\b/.test(String(locationName || "")) ? "Dev · live" : "";
+}
+// Second, loud confirm text for deleting a REAL Google event from Dev or
+// Preview (those instances share the family's real Google calendars one-way).
+// Returns null when no extra prompt is wanted: not a Dev/Preview instance
+// (the seed names the HA location "Family Hub DEV" / "Family Hub PREVIEW",
+// whole words, case-sensitive), a non-Google calendar, or a pretend event
+// carrying the exact seed tag.
+function __fhRealCalendarDeleteWarning(locationName, platform, summary, personName) {
+  const m = /\b(PREVIEW|DEV)\b/.exec(String(locationName || ""));
+  if (!m || platform !== "google") return null;
+  const title = String(summary || "");
+  if (title.startsWith("[PREVIEW] ") || title.startsWith("[DEV] ")) return null;
+  const env = m[1] === "PREVIEW" ? "Preview" : "Dev";
+  const chars = Array.from(title);
+  const shown = chars.length > 80 ? chars.slice(0, 80).join("") + "…" : title;
+  return [
+    "THIS IS THE REAL FAMILY CALENDAR.",
+    "",
+    "You are in " + env + ', but "' + shown + '" is on ' + String(personName || "") + "'s real Google Calendar. Deleting it here deletes it for the whole family, and Family Hub cannot undo it.",
+    "",
+    "Delete it anyway?",
+  ].join("\n");
+}
+// __FH_TESTABLE_HELPERS_END
+let __fhBuildStampLogged = false;
+
 (function () {
 if (window.__familyCalendarApplyScrollLock) return;
 function applyScrollLock(locked) {
@@ -5637,6 +5680,13 @@ instead of the usual stacked field layout. */
    real heads-up" regardless of which household theme is active. */
 .ha-starting-banner { padding: 8px 14px; background: #fff3cd; color: #7a5c00; font-size: 13px; font-weight: 600; text-align: center; }
 .ha-starting-banner[hidden] { display: none; }
+/* Build stamp (Dev / Preview): a non-scrolling row under the calendar grid in
+   ha-card's flex column, so it is never pushed off screen by the grid's own
+   scroll area. Right padding keeps it clear of the + button. Wraps, never
+   truncates: the hash is the part she compares. Absent entirely on Home. */
+.fh-build-stamp { flex: 0 0 auto; padding: 4px 96px 8px 16px; font-size: 12px; line-height: 1.4; font-weight: 600; color: var(--fc-text); overflow-wrap: anywhere; user-select: text; }
+.fh-build-stamp b { font-weight: 700; }
+.fh-build-stamp[hidden] { display: none; }
 </style>
 `;
 
@@ -5873,6 +5923,7 @@ const first = !this._hass;
 this._hass = hass;
 this._ensureTranslationsLoaded();
 this._updateHaStartingBanner();
+this._updateBuildStamp();
 if (first) {
 this._firstLoadPromise = this._initFirstLoad();
 // skip the _applySizeVars() call below on this very first
@@ -11056,6 +11107,45 @@ const banner = this._root.querySelector(".ha-starting-banner");
 if (!banner) return;
 banner.hidden = this._isHomeAssistantFullyLoaded();
 }
+// Fills the build stamp row (see __fhBuildStampText) from Home Assistant's
+// location name. Recomputed only when that name changes. An empty answer
+// removes the row from the DOM entirely (nothing, not even spacing, on Home);
+// a later non-empty answer puts it back right after the main layout. Values
+// go in through textContent only. Safe to call before the card is built.
+_updateBuildStamp() {
+if (!this._root || typeof this._root.querySelector !== "function") return;
+const loc = (this._hass && this._hass.config && this._hass.config.location_name) || "";
+if (this._fhBuildStampLoc === loc) return;
+this._fhBuildStampLoc = loc;
+const text = __fhBuildStampText(__FH_BUILD, loc);
+let el = this._root.querySelector(".fh-build-stamp") || this._fhBuildStampEl;
+if (!el) return;
+this._fhBuildStampEl = el;
+if (!text) {
+el.remove();
+return;
+}
+if (!el.isConnected) {
+const layout = this._root.querySelector(".fh-main-layout");
+if (!layout) return;
+layout.after(el);
+}
+const sep = text.indexOf(" · ");
+el.textContent = "";
+if (sep > 0) {
+const strong = document.createElement("b");
+strong.textContent = text.slice(0, sep);
+el.appendChild(strong);
+el.appendChild(document.createTextNode(text.slice(sep)));
+} else {
+el.textContent = text;
+}
+el.hidden = false;
+if (!__fhBuildStampLogged) {
+__fhBuildStampLogged = true;
+console.info(text);
+}
+}
 _isHomeAssistantFullyLoaded() {
 // Home Assistant's own hass.config.state (standard across every
 // integration/card, not something this one invented) goes
@@ -13250,7 +13340,7 @@ async _getCalendarDeleteSupport(entityId) {
 if (!this._calendarDeleteSupport) this._calendarDeleteSupport = {};
 const cached = this._calendarDeleteSupport[entityId];
 if (cached && Date.now() - (cached._at || 0) < 10 * 60 * 1000) return cached;
-if (!this._hass) return { supported: false, updateSupported: false, createSupported: false, integrationName: "your calendar's own app" };
+if (!this._hass) return { supported: false, updateSupported: false, createSupported: false, integrationName: "your calendar's own app", platform: null };
 let result;
 try {
 const res = await this._hass.connection.sendMessagePromise({
@@ -13262,6 +13352,9 @@ supported: !!res.supported,
 updateSupported: !!res.update_supported,
 createSupported: !!res.create_supported,
 integrationName: res.integration_name || "your calendar's own app",
+// entity registry platform from the backend (e.g. "google"); the Dev /
+// Preview loud delete confirm keys on it.
+platform: res.platform || null,
 // v1.168.60: true only when the backend explicitly reported
 // create_supported - lets the Add Event calendar list and the
 // event-info read-only note act on a REAL "this calendar can't take
@@ -14443,6 +14536,7 @@ ${FAMILY_HUB_SHARED_STYLE_BLOCK}
 <div class="legend"></div>
 <div class="grid mode-week"></div>
 </div>
+<div class="fh-build-stamp" hidden></div>
 <div class="modal-overlay edit-overlay">
 <div class="modal-box">
 <button data-fh-aria="text.close" class="modal-close" aria-label="${__fhT("text.close", "Close", null, "h")}">&#10005;</button>
@@ -16079,6 +16173,8 @@ ${FAMILY_HUB_SHARED_STYLE_BLOCK}
 <div class="fh-toast" role="status" aria-live="polite" hidden></div>
 `;
 this._root = root;
+this._fhBuildStampLoc = undefined;
+this._updateBuildStamp();
 // On narrow/mobile layouts, :host and ha-card both get overflow:hidden
 // (see the 700px media query) to contain the calendar grid's own
 // scrolling and stop the whole page from also scrolling. That same
@@ -23691,6 +23787,14 @@ this._t(
 )
 )
 return;
+// Dev / Preview only: a second, loud yes before removing a real Google event.
+const realCalendarWarning = __fhRealCalendarDeleteWarning(
+this._hass && this._hass.config && this._hass.config.location_name,
+support.platform,
+detail.summary,
+detail.personName
+);
+if (realCalendarWarning && !window.confirm(realCalendarWarning)) return;
 btn.disabled = true;
 btn.textContent = this._t("event_info.deleting", "Deleting…");
 try {
