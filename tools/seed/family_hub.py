@@ -9,22 +9,36 @@ Family Hub command, so it is always read first, changed, and written back.
 """
 from __future__ import annotations
 
+import copy
 import json
 import logging
 from datetime import date, datetime, time, timezone, tzinfo
 from typing import Any, Callable, Optional
 from zoneinfo import ZoneInfo
 
-from .client import HAWebSocket, SeedError
+from .client import HAClient, HAWebSocket, SeedError
 from .content import Content
 from .creds import CredentialStore
-from .entries import SETUP_PALETTE, TODO_LISTS
+from .entries import SETUP_PALETTE, TODO_LISTS, list_entries
 from .envs import Env
 from .family_file import Family
 
 _LOGGER = logging.getLogger(__name__)
 
 MEAL_PLAN_ENTITY = TODO_LISTS["Meal Plan"]
+
+# Per-profile switches that make Family Hub send something. The seed writes them all off.
+NOTIFICATION_FLAGS = (
+    "remindersEnabled",
+    "digestEnabled",
+    "notifyRewardClaimed",
+    "notifyChoreApproved",
+    "notifyTimerAlarm",
+)
+SETTINGS_KEY_ALARM_DEVICES = "alarmDevices"  # const.py SETTINGS_KEY_ALARM_DEVICES
+
+# Entries that onboarding adds and that call out to the internet (Pitfall 17).
+OUTBOUND_DOMAINS = ("radio_browser", "google_translate", "met")
 
 
 async def instance_today(ws: HAWebSocket) -> tuple[date, tzinfo]:
@@ -292,3 +306,52 @@ async def apply_content(
     say("content: " + ", ".join("%s +%d" % (area, count) for area, count in added.items()))
     say("theme: %s" % env.theme)
     return added
+
+
+async def apply_safe_notifications(ws: HAWebSocket, say: Callable[[str], None] = print) -> bool:
+    """Make sure nothing can reach a real phone or speaker (PREV-03); returns True when it changed anything.
+
+    Atomic GET, modify, SET of the settings: every profile (and every member, even one without a
+    profile yet) gets empty notify targets and every notification flag off, and the household
+    alarm devices are cleared. Nothing is written when the settings are already safe.
+    """
+    settings = await get_settings(ws)
+    before = copy.deepcopy(settings)
+    profiles = settings.get("userProfiles")
+    if profiles is None:
+        profiles = settings["userProfiles"] = {}
+    if not isinstance(profiles, dict):
+        raise SeedError("settings", "Family Hub settings are unreadable: userProfiles is not a mapping")
+    members = settings.get("memberUserIds")
+    ids = set(profiles) | {str(m) for m in members if isinstance(m, str)} if isinstance(members, list) else set(profiles)
+    for user_id in sorted(ids):
+        profile = profiles.get(user_id)
+        if not isinstance(profile, dict):
+            profile = profiles[user_id] = {}
+        profile["notifyTargets"] = []
+        for flag in NOTIFICATION_FLAGS:
+            profile[flag] = False
+    settings[SETTINGS_KEY_ALARM_DEVICES] = []
+    changed = settings != before
+    if changed:
+        await ws.call("family_hub/set_settings", settings=settings)
+    say("notifications: %d profiles safe (targets empty, alerts off)%s" % (len(ids), "" if changed else ", unchanged"))
+    return changed
+
+
+async def remove_outbound_entries(
+    client: HAClient, token: str, say: Callable[[str], None] = print
+) -> int:
+    """Delete the config entries onboarding adds that call out to the internet; returns how many."""
+    removed = 0
+    for entry in await list_entries(client, token):
+        if entry.get("domain") not in OUTBOUND_DOMAINS:
+            continue
+        status, body = await client.rest(
+            "DELETE", "/api/config/config_entries/entry/%s" % entry["entry_id"], token=token
+        )
+        if status != 200:
+            raise SeedError("entries", "deleting the %s entry failed (HTTP %s): %s" % (entry.get("domain"), status, body))
+        removed += 1
+    say("outbound entries removed: %d" % removed)
+    return removed

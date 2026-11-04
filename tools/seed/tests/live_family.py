@@ -13,6 +13,7 @@ import unittest
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+from tools.seed import verify
 from tools.seed.client import HAClient
 from tools.seed.dashboard import DASHBOARD_VIEWS, KEEP_PANELS
 
@@ -122,8 +123,20 @@ class LiveFamilyTests(unittest.TestCase):
 
     def test_a_seed_exits_zero_and_reports_each_step(self) -> None:
         self.assertEqual(self.first.returncode, 0, self.first.stderr + self.first.stdout)
-        for line in ("users:", "to-do lists:", "calendars:", "family hub:", "dashboard:", "sidebar:"):
+        for line in (
+            "outbound entries removed:",
+            "users:",
+            "to-do lists:",
+            "calendars:",
+            "family hub:",
+            "dashboard:",
+            "content:",
+            "notifications:",
+            "sidebar:",
+            "verify: all",
+        ):
             self.assertIn(line, self.first.stdout)
+        self.assertNotIn("FAIL", self.first.stdout)
 
     def test_b_every_member_has_an_account_in_the_right_group(self) -> None:
         users = self.users()
@@ -241,6 +254,68 @@ class LiveFamilyTests(unittest.TestCase):
         self.assertEqual(settings["globalThemeId"], "blossom")
         self.assertTrue(settings["useGlobalTheme"])
         self.assertTrue(set(self.child_ids().values()) <= set(settings["kioskLoginEnabledUserIds"]))
+
+    # -- task 3: nothing reaches a real phone -----------------------------------------------------
+
+    def test_l_onboarding_side_effects_are_gone_and_domains_are_allowed(self) -> None:
+        async def read(client, token, _ws):
+            return (await client.rest("GET", "/api/config/config_entries/entry", token=token))[1]
+
+        domains = {e["domain"] for e in self.read_admin(read)}
+        for gone in ("radio_browser", "google_translate", "met"):
+            self.assertNotIn(gone, domains)
+        self.assertTrue(domains <= set(verify.ALLOWED_ENTRY_DOMAINS), domains)
+
+    def test_m_seeded_profiles_are_safe(self) -> None:
+        async def read(_client, _token, ws):
+            return (await ws.call("family_hub/get_settings"))["result"]["settings"]
+
+        settings = self.read_admin(read)
+
+        async def components(_client, _token, ws):
+            return (await ws.call("get_config"))["result"]["components"]
+
+        loaded = self.read_admin(components)
+        self.assertIn("frontend", loaded)  # the list is really read, so the check below is not vacuous
+        for forbidden in verify.FORBIDDEN_COMPONENTS:
+            self.assertNotIn(forbidden, loaded)
+        self.assertEqual(settings["alarmDevices"], [])
+        self.assertEqual(verify.check_isolation(settings, [], [], []), [])
+        profiles = settings["userProfiles"]
+        for member_id in settings["memberUserIds"]:
+            self.assertEqual(profiles[member_id]["notifyTargets"], [])
+
+    def test_x_verify_fails_on_a_real_phone_target_and_passes_again_after_seed(self) -> None:
+        first = self.ha.seed("verify")
+        self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
+        self.assertIn("verify: all", first.stdout)
+
+        her_id = self.users()[HER]["id"]
+
+        async def tamper(_client, _token, ws):
+            settings = (await ws.call("family_hub/get_settings"))["result"]["settings"]
+            settings["userProfiles"][her_id]["notifyTargets"] = ["notify.mobile_app_her_phone"]
+            await ws.call("family_hub/set_settings", settings=settings)
+
+        self.read_admin(tamper)
+        failed = self.ha.seed("verify")
+        self.assertEqual(failed.returncode, 1, failed.stdout + failed.stderr)
+        self.assertIn("notifyTargets", failed.stdout)
+        self.assertIn(her_id, failed.stdout)
+        self.assertIn("notify.mobile_app_her_phone", failed.stdout)
+
+        reseed = self.ha.seed("seed")
+        self.assertEqual(reseed.returncode, 0, reseed.stdout + reseed.stderr)
+        again = self.ha.seed("verify")
+        self.assertEqual(again.returncode, 0, again.stdout + again.stderr)
+
+        # She signs in with the same details a reset reuses (the stored credentials).
+        async def whoami(ws):
+            return (await ws.call("auth/current_user"))["result"]
+
+        me = self.as_member(HER, whoami)
+        self.assertEqual(me["name"], HER)
+        self.assertFalse(me["is_admin"])
 
     def test_y_kid_pin_signs_in_through_kiosk_elevate(self) -> None:
         creds = self.ha.credentials()["members"]
