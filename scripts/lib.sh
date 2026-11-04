@@ -61,7 +61,13 @@ fh_seed() {
   : "${HA_VERSION:?set in versions.env (call fh_load_env first)}"
   mkdir -p "$FH_ROOT/dev/.ha-secrets"
   chmod 700 "$FH_ROOT/dev/.ha-secrets"
-  docker run --rm --network host \
+  # docker run only passes standard input on when told to: needed when a command reads a pipe
+  # (google-save --stdin), harmless otherwise.
+  local -a stdin_flag=()
+  if [ ! -t 0 ]; then
+    stdin_flag=(-i)
+  fi
+  docker run --rm ${stdin_flag[@]+"${stdin_flag[@]}"} --network host \
     --user "$(id -u):$(id -g)" \
     -e HOME=/tmp -e PYTHONDONTWRITEBYTECODE=1 \
     --env-file "$FH_HOST_ENV" \
@@ -268,6 +274,41 @@ fh_wipe() {
   fh_wipe_dir "$FH_STATE_DIR/.ha-${1:?fh_wipe needs an environment name}"
 }
 
+# fh_google_save ENV: keep the Google sign-in of the STOPPED instance (D-10). The config entries file
+# is read through a throwaway container of the pinned image (read-only mount, it is root-owned) and
+# piped into the seed tool, which keeps the one Google entry in dev/.ha-secrets (0600). The seed
+# tool skips silently when the family file has no google block. A failure stops the caller (the
+# reset), so nothing is wiped while the sign-in could not be kept.
+fh_google_save() {
+  local env_name="${1:?fh_google_save needs an environment name}"
+  local dir="$FH_STATE_DIR/.ha-${env_name}"
+  if [ ! -f "$dir/.storage/core.config_entries" ]; then
+    return 0
+  fi
+  : "${HA_VERSION:?set in versions.env (call fh_load_env first)}"
+  docker run --rm -v "$dir:/config:ro" --entrypoint cat "ghcr.io/home-assistant/home-assistant:${HA_VERSION}" \
+    /config/.storage/core.config_entries | fh_seed "$env_name" google-save --stdin
+}
+
+# fh_google_restore ENV: after the wipe and before Home Assistant starts, write the saved Google entry
+# back as the only entry of .storage/core.config_entries (D-10). The text travels in a shell variable
+# and a pipe, never a temporary file, because it holds the refresh token. Nothing is written when
+# nothing was saved or the family file has no google block.
+fh_google_restore() {
+  local env_name="${1:?fh_google_restore needs an environment name}"
+  local dir="$FH_STATE_DIR/.ha-${env_name}"
+  local text
+  : "${HA_VERSION:?set in versions.env (call fh_load_env first)}"
+  text="$(fh_seed "$env_name" google-restore --stdout)" || fh_die "could not read the saved Google sign-in: nothing was restored"
+  if [ -z "$text" ]; then
+    return 0
+  fi
+  mkdir -p "$dir"
+  printf '%s\n' "$text" | docker run --rm -i -v "$dir:/config" --entrypoint sh "ghcr.io/home-assistant/home-assistant:${HA_VERSION}" \
+    -c 'mkdir -p /config/.storage && cat > /config/.storage/core.config_entries && chmod 600 /config/.storage/core.config_entries' ||
+    fh_die "could not write the Google sign-in into $dir/.storage"
+}
+
 # fh_reset_env ENV ASSUME_YES: bring the environment back to a fresh seed with nothing old in it.
 # Confirm, lock, stop the stack, wipe, put the template configuration back, start, seed (the seed
 # ends with verify, which fails on any empty card). The reset stops at the first failure, so a
@@ -280,13 +321,14 @@ fh_reset_env() {
   fh_confirm "$env_name" "$assume_yes"
   fh_lock "$env_name"
   # D-08: the Google calendar backup goes here (plan 02-08). Until then a Google block in the family file is refused, so no Google-connected instance can reach this line.
-  # Plan 02-08 also adds the Google sign-in save here, and the Google restore after the wipe below.
   fh_info "Stopping $label"
   fh_compose "$env_name" down
+  fh_google_save "$env_name"
   fh_info "Erasing $label data (the integration code is kept)"
   fh_wipe "$env_name"
   fh_ensure_config "$env_name"
   fh_ensure_certs
+  fh_google_restore "$env_name"
   fh_info "Starting $label"
   fh_compose "$env_name" up -d
   fh_info "Seeding $label"

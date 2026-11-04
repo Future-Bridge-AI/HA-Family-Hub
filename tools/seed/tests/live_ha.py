@@ -163,8 +163,12 @@ class LiveHA:
         base_url: Optional[str] = None,
         ca: Optional[str] = None,
         timeout: float = 600,
+        input_text: Optional[str] = None,
     ) -> subprocess.CompletedProcess:
-        """Run ``python -m tools.seed`` from the repo root; global options can be overridden."""
+        """Run ``python -m tools.seed`` from the repo root; global options can be overridden.
+
+        ``input_text`` is sent on standard input (google-save --stdin reads it).
+        """
         command = [
             sys.executable,
             "-B",
@@ -189,6 +193,7 @@ class LiveHA:
             capture_output=True,
             text=True,
             timeout=timeout + 60,
+            input=input_text,
         )
 
     def credentials(self, target: Optional[str] = None) -> dict:

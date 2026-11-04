@@ -10,6 +10,7 @@ import argparse
 import asyncio
 import dataclasses
 import logging
+import os
 import sys
 import time
 from typing import Awaitable, Callable, Optional
@@ -22,6 +23,7 @@ from . import entries as entries_mod
 from . import events
 from . import family_file as family_file_mod
 from . import family_hub as family_hub_mod
+from . import google as google_mod
 from . import resources as resources_mod
 from . import users as users_mod
 from . import verify as verify_mod
@@ -124,6 +126,10 @@ async def _cmd_seed(ctx: Context) -> int:
         token, ws = await bootstrap_mod.open_admin(client, ctx.env, ctx.creds())
         creds = ctx.creds()
         await family_hub_mod.remove_outbound_entries(client, token, say)
+        if family.google:
+            # Before Family Hub: a member's calendar may be a Google entity, and an entry that cannot
+            # load stops the seed here with the one-time sign-in instruction.
+            await google_mod.link(client, token, ws, family.google, ctx.env, say)
         user_ids = await users_mod.ensure_users(ws, creds, family, say)
         await entries_mod.ensure_todo_lists(client, token, ws, say)
         calendars = await entries_mod.ensure_local_calendars(client, token, ws, family, say)
@@ -194,6 +200,84 @@ async def _open_running_admin(ctx: Context, client: HAClient) -> tuple[str, HAWe
             await asyncio.sleep(3)
 
 
+def _stderr(line: str) -> None:
+    print(line, file=sys.stderr, flush=True)
+
+
+def _configure_family_only(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--family", default=None, help="family file (default: family.local.yaml, else the example)")
+
+
+def _configure_google_save(parser: argparse.ArgumentParser) -> None:
+    _configure_family_only(parser)
+    where = parser.add_mutually_exclusive_group(required=True)
+    where.add_argument("--stdin", action="store_true", help="read the stopped instance's core.config_entries from stdin")
+    where.add_argument("--config-dir", default=None, help="read DIR/.storage/core.config_entries")
+
+
+async def _cmd_google_save(ctx: Context) -> int:
+    """Keep the stopped instance's Google sign-in in the secrets directory (before a wipe)."""
+    if ctx.args.stdin:
+        text = sys.stdin.read()  # always consumed, so the producer never meets a closed pipe
+    else:
+        path = os.path.join(ctx.args.config_dir, ".storage", "core.config_entries")
+        try:
+            with open(path, encoding="utf-8") as handle:
+                text = handle.read()
+        except FileNotFoundError:
+            say("google: no entry to save")
+            return 0
+    if not family_file_mod.load(ctx.args.family, _stderr).google:
+        return 0
+    google_mod.save_entry(text, ctx.secrets_dir, ctx.env, say)
+    return 0
+
+
+def _configure_google_restore(parser: argparse.ArgumentParser) -> None:
+    _configure_family_only(parser)
+    where = parser.add_mutually_exclusive_group(required=True)
+    where.add_argument("--stdout", action="store_true", help="print the core.config_entries text to write")
+    where.add_argument("--config-dir", default=None, help="write DIR/.storage/core.config_entries (a wiped directory)")
+
+
+async def _cmd_google_restore(ctx: Context) -> int:
+    """Hand back the saved Google sign-in as the only config entry, for a wiped directory."""
+    target = None
+    if ctx.args.config_dir:
+        target = os.path.join(ctx.args.config_dir, ".storage", "core.config_entries")
+        if os.path.exists(target):
+            _stderr("refused: %s already exists; the Google entry is only restored into a wiped directory" % target)
+            return 2
+    if not family_file_mod.load(ctx.args.family, _stderr).google:
+        return 0
+    text = google_mod.restore_entry(ctx.secrets_dir, ctx.env)
+    if text is None:
+        _stderr("google: no saved entry for %s" % ctx.env.key)
+        return 0
+    if target is None:
+        sys.stdout.write(text)
+        sys.stdout.flush()
+        return 0
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write(text)
+    say("google: entry restored into %s" % target)
+    return 0
+
+
+async def _cmd_google_link(ctx: Context) -> int:
+    """Create the application credential and reload the Google entry until it is loaded."""
+    family = family_file_mod.load(ctx.args.family, say)
+    if not family.google:
+        say("google: not configured")
+        return 0
+    async with ctx.client() as client:
+        token, ws = await bootstrap_mod.open_admin(client, ctx.env, ctx.creds())
+        await google_mod.link(client, token, ws, family.google, ctx.env, say)
+    return 0
+
+
 async def _cmd_refresh(ctx: Context) -> int:
     """Keep the week current without starting over: top up her content, sync the pretend events,
     put the safe notification settings back and verify. Everything here only adds or corrects;
@@ -244,6 +328,21 @@ COMMANDS: dict[str, Command] = {
         "print the plain hand-off note for her after a deploy",
         _cmd_note,
         _configure_note,
+    ),
+    "google-save": Command(
+        "keep the stopped instance's Google sign-in in the secrets directory (before a wipe)",
+        _cmd_google_save,
+        _configure_google_save,
+    ),
+    "google-restore": Command(
+        "hand back the saved Google sign-in as the only config entry (into a wiped directory)",
+        _cmd_google_restore,
+        _configure_google_restore,
+    ),
+    "google-link": Command(
+        "create the Google application credential and reload the entry until it is loaded",
+        _cmd_google_link,
+        _configure_family_only,
     ),
     "resources-sync": Command(
         "point each card's lovelace resource at the hash of the file being served",

@@ -133,10 +133,10 @@ class BadFamilyTests(unittest.TestCase):
         data["members"][2]["calendar"] = "google:x"
         self.assertRejected(data, "members[2].calendar", "google")
 
-    def test_non_null_google_block_needs_plan_02_08(self) -> None:
+    def test_google_block_needs_a_client_secret(self) -> None:
         data = base()
         data["google"] = {"client_id": "x"}
-        self.assertRejected(data, "google", "02-08")
+        self.assertRejected(data, "google.client_secret")
 
 
 if __name__ == "__main__":

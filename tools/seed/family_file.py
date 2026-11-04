@@ -92,6 +92,22 @@ def _reject_unknown(mapping: dict, allowed: tuple[str, ...], path: str) -> None:
             raise FamilyFileError("%s: unknown key %r (allowed: %s)" % (path or "file", key, ", ".join(allowed)))
 
 
+def _parse_google(raw: Any) -> Optional[dict]:
+    """The google block: None when absent, else a normalised copy (calendars always a list)."""
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise FamilyFileError("google: must be a mapping or null")
+    for name in ("client_id", "client_secret"):
+        value = raw.get(name)
+        if not isinstance(value, str) or not value.strip():
+            raise FamilyFileError("google.%s: a non-empty text is needed" % name)
+    calendars = raw.get("calendars", [])
+    if not isinstance(calendars, list):
+        raise FamilyFileError("google.calendars: must be a list")
+    return {"client_id": raw["client_id"].strip(), "client_secret": raw["client_secret"].strip(), "calendars": list(calendars)}
+
+
 def _parse_member(raw: Any, index: int, google_keys: Optional[set[str]]) -> Member:
     path = "members[%d]" % index
     if not isinstance(raw, dict):
@@ -132,11 +148,8 @@ def _parse_member(raw: Any, index: int, google_keys: Optional[set[str]]) -> Memb
     if calendar != "local":
         if not calendar.startswith("google:") or len(calendar) == len("google:"):
             raise FamilyFileError("%s.calendar: %r must be \"local\" or \"google:<key>\"" % (path, calendar))
-        if not google_keys:
-            raise FamilyFileError(
-                "%s.calendar: %r needs a google block, which needs plan 02-08 (use \"local\" until then)"
-                % (path, calendar)
-            )
+        if google_keys is None:
+            raise FamilyFileError("%s.calendar: %r needs a google block (see dev/GOOGLE.md)" % (path, calendar))
         if calendar[len("google:"):] not in google_keys:
             raise FamilyFileError("%s.calendar: %r is not a key of the google block" % (path, calendar))
 
@@ -159,11 +172,8 @@ def parse(data: Any, source: str = "") -> Family:
     if data.get("schema_version") != SCHEMA_VERSION:
         raise FamilyFileError("schema_version: must be %d, found %r" % (SCHEMA_VERSION, data.get("schema_version")))
 
-    google = data.get("google")
-    if google is not None:
-        # The google block is defined by plan 02-08; until then a non-null block cannot be honoured.
-        raise FamilyFileError("google: the google block needs plan 02-08 (set it to null until then)")
-    google_keys: Optional[set[str]] = None
+    google = _parse_google(data.get("google"))
+    google_keys: Optional[set[str]] = {c.get("key") for c in google["calendars"] if isinstance(c, dict)} if google else None
 
     raw_members = data.get("members")
     if not isinstance(raw_members, list) or not raw_members:
@@ -196,7 +206,7 @@ def parse(data: Any, source: str = "") -> Family:
         raise FamilyFileError("members: exactly one member needs admin: true (found %d)" % len(admins))
     if not any(m.role == "parent" and not m.admin for m in members):
         raise FamilyFileError("members: at least one parent other than the admin is needed (admin: false)")
-    return Family(members=members, google=None, source=source)
+    return Family(members=members, google=google, source=source)
 
 
 def load(path: Optional[str] = None, say: Callable[[str], None] = print) -> Family:

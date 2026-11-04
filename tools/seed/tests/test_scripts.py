@@ -31,14 +31,30 @@ IMAGE = "ghcr.io/home-assistant/home-assistant:" + HA_VERSION
 # which is how a half-finished wipe is simulated).
 STUB_DOCKER = """#!/usr/bin/env bash
 printf 'docker %s\\n' "$*" >> "$FH_STUB_LOG"
-if [ "$1" = "run" ] && [ -z "${FH_STUB_NO_WIPE:-}" ]; then
+if [ "$1" = "run" ]; then
+  all="$*"
   src=""
   while [ $# -gt 0 ]; do
     if [ "$1" = "-v" ]; then src="${2%%:*}"; break; fi
     shift
   done
   if [ -n "$src" ]; then
-    find "$src" -mindepth 1 -maxdepth 1 ! -name custom_components -exec rm -rf {} +
+    case "$all" in
+      *"--entrypoint cat"*)
+        # the read-only container that prints the config entries file of the stopped instance
+        cat "$src/.storage/core.config_entries"
+        ;;
+      *"cat > /config/.storage/core.config_entries"*)
+        # the container that writes the restored Google entry (its stdin is the text)
+        mkdir -p "$src/.storage"
+        cat > "$src/.storage/core.config_entries"
+        ;;
+      *"rm -rf"*)
+        if [ -z "${FH_STUB_NO_WIPE:-}" ]; then
+          find "$src" -mindepth 1 -maxdepth 1 ! -name custom_components -exec rm -rf {} +
+        fi
+        ;;
+    esac
   fi
 fi
 exit "${FH_STUB_DOCKER_RC:-0}"
@@ -56,6 +72,10 @@ done
 for word in "$@"; do
   if [ "$word" = "note" ]; then
     exec "$FH_STUB_PY" -B -m tools.seed "$@"
+  fi
+  if [ "$word" = "google-restore" ] && [ -n "${FH_STUB_RESTORE_TEXT:-}" ]; then
+    printf '%s\\n' "$FH_STUB_RESTORE_TEXT"
+    exit 0
   fi
 done
 exit 0
@@ -201,10 +221,12 @@ class ResetTests(ScriptCase):
         wipe = self.position(calls, "docker run", "--rm", "-v %s:/config" % config, IMAGE, "find /config", "! -name custom_components")
         up = self.position(calls, "compose", "-p familyhub-preview", "up -d")
         seed = self.position(calls, "seed --target preview seed")
+        restore = self.position(calls, "seed --target preview google-restore --stdout")
         self.assertLess(down, wipe)
-        self.assertLess(wipe, up)
+        self.assertLess(wipe, restore)
+        self.assertLess(restore, up)
         self.assertLess(up, seed)
-        self.assertEqual(len(calls), 4, calls)
+        self.assertEqual(len(calls), 5, calls)
         self.assertIn("-f dev/compose.yaml -f dev/compose.preview.yaml", calls[down])
         self.assertIn(
             "Preview is back to the starting week. She may need to sign in again with her usual details.", result.stdout
@@ -302,6 +324,69 @@ class ResetTests(ScriptCase):
         self.assertIn("Preview is busy", result.stderr)
         self.assertEqual(self.calls(), [])
         self.assertTrue((self.state / ".ha-preview" / ".storage" / "auth").exists())
+
+
+class GoogleResetTests(ScriptCase):
+    """D-10: a reset saves the Google entry of the stopped instance, wipes, and writes it back before the start."""
+
+    RESTORED = '{"key": "core.config_entries", "data": {"entries": ["the google entry"]}}'
+
+    def test_the_sign_in_is_saved_before_the_wipe_and_written_back_before_the_start(self) -> None:
+        config = self.populate("preview", [".storage/core.config_entries"])
+        result = self.run_script("reset-preview", "--yes", FH_STUB_RESTORE_TEXT=self.RESTORED)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        calls = self.calls()
+        down = self.position(calls, " down")
+        read = self.position(calls, "docker run", "--entrypoint cat", "-v %s:/config:ro" % config, "/config/.storage/core.config_entries")
+        save = self.position(calls, "seed --target preview google-save --stdin")
+        wipe = self.position(calls, "docker run", "rm -rf")
+        restore = self.position(calls, "seed --target preview google-restore --stdout")
+        write = self.position(calls, "docker run", "-i", "-v %s:/config" % config, "cat > /config/.storage/core.config_entries")
+        up = self.position(calls, "up -d")
+        seed = self.position(calls, "seed --target preview seed")
+        # the read and the save run on the two ends of one pipe, so their log order is not fixed
+        self.assertLess(down, min(read, save))
+        self.assertLess(max(read, save), wipe)
+        self.assertLess(wipe, restore)
+        self.assertLess(restore, write)
+        self.assertLess(write, up)
+        self.assertLess(up, seed)
+        written = (config / ".storage" / "core.config_entries").read_text(encoding="utf-8")
+        self.assertEqual(written, self.RESTORED + "\n")
+        self.assertEqual(sorted(p.name for p in config.iterdir()), [".storage", "configuration.yaml", "custom_components"])
+
+    def test_a_failed_save_stops_before_anything_is_wiped(self) -> None:
+        config = self.populate("preview", [".storage/core.config_entries"])
+        result = self.run_script("reset-preview", "--yes", FH_STUB_FAIL="google-save")
+        self.assertNotEqual(result.returncode, 0)
+        calls = self.calls()
+        self.assertFalse(any("rm -rf" in line for line in calls), calls)
+        self.assertFalse(any("up -d" in line for line in calls), calls)
+        self.assertFalse(any(line.startswith("seed") and line.endswith(" seed") for line in calls), calls)
+        self.assertTrue((config / ".storage" / "auth").exists(), "nothing was erased")
+
+    def test_a_failed_restore_stops_before_the_start(self) -> None:
+        self.populate("preview", [".storage/core.config_entries"])
+        result = self.run_script("reset-preview", "--yes", FH_STUB_FAIL="google-restore")
+        self.assertNotEqual(result.returncode, 0)
+        calls = self.calls()
+        self.assertFalse(any("up -d" in line for line in calls), calls)
+        self.assertFalse(any(line.startswith("seed") and line.endswith(" seed") for line in calls), calls)
+
+    def test_with_nothing_saved_no_entry_is_written(self) -> None:
+        config = self.populate("preview", [".storage/core.config_entries"])
+        result = self.run_script("reset-preview", "--yes")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertFalse(any("cat > /config/.storage" in line for line in self.calls()))
+        self.assertFalse((config / ".storage").exists())
+
+    def test_an_instance_that_never_had_a_google_entry_file_skips_the_save(self) -> None:
+        self.populate("preview")
+        result = self.run_script("reset-preview", "--yes")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        calls = self.calls()
+        self.assertFalse(any("google-save" in line for line in calls), calls)
+        self.assertFalse(any("--entrypoint cat" in line for line in calls), calls)
 
 
 class DeployTests(ScriptCase):
