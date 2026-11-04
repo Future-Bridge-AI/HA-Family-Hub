@@ -11,6 +11,7 @@ import asyncio
 import dataclasses
 import logging
 import sys
+import time
 from typing import Awaitable, Callable, Optional
 
 from . import bootstrap as bootstrap_mod
@@ -18,12 +19,13 @@ from . import dashboard as dashboard_mod
 from . import content as content_mod
 from . import deploy as deploy_mod
 from . import entries as entries_mod
+from . import events
 from . import family_file as family_file_mod
 from . import family_hub as family_hub_mod
 from . import resources as resources_mod
 from . import users as users_mod
 from . import verify as verify_mod
-from .client import HAClient, SeedError
+from .client import HAClient, HAWebSocket, SeedError
 from .creds import CredentialStore
 from .envs import ENVIRONMENTS, Env, GuardRefused, base_url, get_env
 from .family_file import FamilyFileError
@@ -130,6 +132,8 @@ async def _cmd_seed(ctx: Context) -> int:
         today, zone = await family_hub_mod.instance_today(ws)
         week = content_mod.build_content(family, ctx.env, today)
         await family_hub_mod.apply_content(ws, family, user_ids, week, creds, ctx.env, zone, say)
+        slots = entries_mod.calendar_slots(family, calendars)
+        await events.sync(client, token, slots, ctx.env, today, apply=True, say=say)
         await family_hub_mod.apply_safe_notifications(ws, say)
         for member in family.members:
             if not member.admin:
@@ -166,9 +170,49 @@ async def _cmd_note(ctx: Context) -> int:
     return 0
 
 
+# Errors that only mean "Home Assistant is still starting": retried for a while by refresh.
+_STARTING_UP = ("auth", "connect", "ws_error")
+_STARTUP_PATIENCE = 120.0
+
+
+async def _open_running_admin(ctx: Context, client: HAClient) -> tuple[str, HAWebSocket]:
+    """Log in as the tool's admin (identity guard first) and wait until Home Assistant is RUNNING.
+
+    A refresh runs at logon, possibly right after Docker restarted Preview, so a login or
+    connection that fails while HA is still starting is retried for a couple of minutes. A wrong
+    name (identity) or an unusable CA is never retried.
+    """
+    deadline = time.monotonic() + min(ctx.timeout, _STARTUP_PATIENCE)
+    while True:
+        try:
+            token, ws = await bootstrap_mod.open_admin(client, ctx.env, ctx.creds())
+            await bootstrap_mod.wait_running(ws, ctx.timeout, say)
+            return token, ws
+        except SeedError as err:
+            if err.code not in _STARTING_UP or time.monotonic() >= deadline:
+                raise
+            await asyncio.sleep(3)
+
+
 async def _cmd_refresh(ctx: Context) -> int:
-    """RED-phase stub: replaced by the real refresh in the GREEN commit."""
-    return 0
+    """Keep the week current without starting over: top up her content, sync the pretend events,
+    put the safe notification settings back and verify. Everything here only adds or corrects;
+    the Family Hub data she and the family created is left exactly as it is."""
+    family = family_file_mod.load(ctx.args.family, say)
+    async with ctx.client() as client:
+        await bootstrap_mod.wait_http(client, ctx.timeout, say)
+        token, ws = await _open_running_admin(ctx, client)
+        creds = ctx.creds()
+        await family_hub_mod.remove_outbound_entries(client, token, say)
+        user_ids = await users_mod.ensure_users(ws, creds, family, say)
+        calendars = await entries_mod.ensure_local_calendars(client, token, ws, family, say)
+        today, zone = await family_hub_mod.instance_today(ws)
+        week = content_mod.build_content(family, ctx.env, today)
+        await family_hub_mod.apply_content(ws, family, user_ids, week, creds, ctx.env, zone, say)
+        slots = entries_mod.calendar_slots(family, calendars)
+        await events.sync(client, token, slots, ctx.env, today, apply=True, say=say)
+        await family_hub_mod.apply_safe_notifications(ws, say)
+        return await _verify(ctx, client, token, ws, family, creds)
 
 
 COMMANDS: dict[str, Command] = {
@@ -186,7 +230,11 @@ COMMANDS: dict[str, Command] = {
         _cmd_verify,
         _configure_family,
     ),
-    "refresh": Command("RED-phase stub", _cmd_refresh, _configure_family),
+    "refresh": Command(
+        "top up her week, sync the pretend events, re-apply safe notifications and verify (never wipes)",
+        _cmd_refresh,
+        _configure_family,
+    ),
     "verify-served": Command(
         "fail unless the instance serves the stamped calendar card and one fresh resource per card",
         _cmd_verify_served,

@@ -11,6 +11,7 @@ import logging
 import time
 from typing import Callable, Optional
 
+from . import events
 from .client import HAClient, HAWebSocket, SeedError
 from .family_file import Family
 
@@ -186,6 +187,15 @@ async def ensure_family_hub_entry(
     say("family hub: already set up (%d members)" % len(family.members))
 
 
-def calendar_slots(family: Family, calendars: dict[str, str]) -> list:
-    """RED-phase stub: replaced by the real mapping in the GREEN commit."""
-    return []
+def calendar_slots(family: Family, calendars: dict[str, str]) -> list[events.CalendarSlot]:
+    """The calendars the pretend events go on: one writable slot per member with a Local Calendar.
+
+    ``calendars`` is what ensure_local_calendars returned (``first_name -> entity id``). Members
+    whose calendar is not local, or whose calendar entity does not exist, get no slot. Plan 02-08
+    adds the Google calendars here, each with its own writable flag.
+    """
+    return [
+        events.CalendarSlot(person=member.first_name, entity_id=calendars[member.first_name], writable=True)
+        for member in family.members
+        if member.local_calendar and member.first_name in calendars
+    ]
