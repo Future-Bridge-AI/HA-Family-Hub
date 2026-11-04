@@ -418,6 +418,63 @@ class DeployTests(ScriptCase):
         self.assertTrue(calls[0].endswith(" stop"))
 
 
+class RefreshTests(ScriptCase):
+    def test_a_refresh_waits_then_refreshes_and_never_stops_or_wipes_anything(self) -> None:
+        config = self.populate("preview")
+        result = self.run_script("refresh-preview")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        calls = self.calls()
+        wait = self.position(calls, "seed --target preview", "--timeout 300", " wait")
+        refresh = self.position(calls, "seed --target preview refresh")
+        self.assertLess(wait, refresh)
+        self.assertEqual(len(calls), 2, calls)
+        self.assertFalse(any(line.startswith("docker") for line in calls), calls)
+        self.assertRegex(result.stdout.strip().splitlines()[-1], r"^Preview refreshed: \d{4}-\d{2}-\d{2}$")
+        # nothing of hers was touched on disk
+        self.assertTrue((config / ".storage" / "auth").exists())
+        self.assertTrue((config / "family_hub_backups" / "chores.json").exists())
+
+    def test_the_yes_flag_is_accepted_for_symmetry_and_nothing_is_asked(self) -> None:
+        result = self.run_script("refresh-preview", "--yes")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(self.calls()), 2)
+
+    def test_when_preview_is_not_running_it_says_so_and_does_not_refresh(self) -> None:
+        result = self.run_script("refresh-preview", FH_STUB_FAIL="wait")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Preview is not running", result.stderr)
+        self.assertIn("is WSL/Docker up?", result.stderr)
+        calls = self.calls()
+        self.assertEqual(len(calls), 1, calls)
+        self.assertNotIn("refresh", calls[0])
+        self.assertNotIn("Preview refreshed", result.stdout)
+
+    def test_a_failed_refresh_exits_non_zero_without_the_success_line(self) -> None:
+        result = self.run_script("refresh-preview", FH_STUB_FAIL="refresh")
+        self.assertEqual(result.returncode, 1)
+        self.assertNotIn("Preview refreshed", result.stdout)
+
+    def test_a_refresh_while_another_operation_holds_the_lock_changes_nothing(self) -> None:
+        self.hold_lock("preview")
+        result = self.run_script("refresh-preview")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Preview is busy", result.stderr)
+        self.assertEqual(self.calls(), [])
+
+    def test_the_script_has_no_path_to_a_stop_or_a_wipe(self) -> None:
+        text = (SCRIPTS / "refresh-preview").read_text(encoding="utf-8")
+        self.assertIsNone(re.search(r"compose (preview |\$ENV )?down|fh_wipe", text))
+        self.assertIn("D-08: the Google calendar backup goes here (plan 02-08).", text)
+
+    def test_every_destructive_script_carries_the_d08_hook_comment(self) -> None:
+        hook = (
+            "D-08: the Google calendar backup goes here (plan 02-08). Until then a Google block in the family "
+            "file is refused, so no Google-connected instance can reach this line."
+        )
+        for name in ("lib.sh", "deploy-preview", "refresh-preview"):
+            self.assertIn(hook, (SCRIPTS / name).read_text(encoding="utf-8"), name)
+
+
 class ComposeStateTests(ScriptCase):
     def test_state_dir_and_host_env_can_be_redirected_for_every_helper(self) -> None:
         text = (SCRIPTS / "lib.sh").read_text(encoding="utf-8")

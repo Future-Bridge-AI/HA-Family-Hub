@@ -184,3 +184,8 @@ async def ensure_family_hub_entry(
             "entries", "this instance was set up by hand; run the reset (not Family Hub members: %s)" % ", ".join(missing)
         )
     say("family hub: already set up (%d members)" % len(family.members))
+
+
+def calendar_slots(family: Family, calendars: dict[str, str]) -> list:
+    """RED-phase stub: replaced by the real mapping in the GREEN commit."""
+    return []

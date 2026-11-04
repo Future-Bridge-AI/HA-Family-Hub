@@ -13,7 +13,9 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import quote
 
 from tools.seed import deploy, resources
 from tools.seed.client import HAClient
@@ -318,6 +320,162 @@ class LiveResetTests(unittest.TestCase):
         me = self.ha.run_async(whoami())
         self.assertEqual(me["name"], self.HER)
         self.assertFalse(me["is_admin"])
+
+
+class LiveRefreshTests(unittest.TestCase):
+    """refresh keeps the week current without wiping, and re-asserts the safe notification settings."""
+
+    ha: LiveHA
+    served_dir: str
+    HER = "Jordan"
+    PEOPLE = ("Sam", "Jordan", "Riley", "Casey")
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.ha = LiveHA("preview", PORT)
+        cls.ha.__enter__()
+        try:
+            cls.served_dir = str(cls.ha.config_dir / "custom_components" / "family_hub")
+            cls.first = cls.ha.seed("seed", "--integration-dir", cls.served_dir)
+            if cls.first.returncode != 0:
+                raise RuntimeError("seed failed: %s %s" % (cls.first.stdout, cls.first.stderr))
+        except BaseException:
+            cls.ha.__exit__(None, None, None)
+            raise
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.ha.__exit__(None, None, None)
+
+    def refresh(self) -> subprocess.CompletedProcess:
+        return self.ha.seed("refresh", "--integration-dir", self.served_dir)
+
+    def admin(self, fn):
+        async def run():
+            async with self.ha.admin_session() as (client, token, ws):
+                return await fn(client, token, ws)
+
+        return self.ha.run_async(run())
+
+    def calendar_events(self) -> dict[str, list[dict]]:
+        """Every event on every person's calendar from a week ago to three weeks ahead."""
+
+        async def read(client, token, ws):
+            states = (await ws.call("get_states"))["result"]
+            result = {}
+            now = datetime.now(timezone.utc)
+            start = quote((now - timedelta(days=7)).isoformat(), safe="")
+            end = quote((now + timedelta(days=21)).isoformat(), safe="")
+            for state in states:
+                if state["entity_id"].startswith("calendar."):
+                    status, body = await client.rest(
+                        "GET", "/api/calendars/%s?start=%s&end=%s" % (state["entity_id"], start, end), token=token
+                    )
+                    assert status == 200, body
+                    result[state["attributes"]["friendly_name"]] = body
+            return result
+
+        return self.admin(read)
+
+    def settings(self) -> dict:
+        async def read(_client, _token, ws):
+            return (await ws.call("family_hub/get_settings"))["result"]["settings"]
+
+        return self.admin(read)
+
+    def user_id(self, name: str) -> str:
+        async def read(_client, _token, ws):
+            users = (await ws.call("config/auth/list"))["result"]
+            return next(u["id"] for u in users if u["name"] == name and not u["system_generated"])
+
+        return self.admin(read)
+
+    # -- the tests -------------------------------------------------------------------------------
+
+    def test_a_the_seed_put_tagged_pretend_events_on_every_calendar(self) -> None:
+        self.assertRegex(self.first.stdout, r"events: create \d+, delete 0, keep 0 \(applied\)")
+        found = self.calendar_events()
+        self.assertEqual(set(found), set(self.PEOPLE))
+        for person, items in found.items():
+            tagged = [e for e in items if e["summary"].startswith("[PREVIEW] ")]
+            self.assertTrue(tagged, "%s has no [PREVIEW] events" % person)
+            self.assertEqual(len(tagged), len(items), "%s has an event without the tag" % person)
+
+    def test_b_a_first_refresh_changes_no_event_and_ends_in_verify(self) -> None:
+        before = self.calendar_events()
+        result = self.refresh()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertRegex(result.stdout, r"events: create 0, delete 0, keep \d+ \(applied\)")
+        self.assertIn("verify: all", result.stdout)
+        after = self.calendar_events()
+        self.assertEqual(
+            {person: sorted(e["uid"] for e in items) for person, items in after.items()},
+            {person: sorted(e["uid"] for e in items) for person, items in before.items()},
+            "a refresh must keep the very same events, not re-create them",
+        )
+
+    def test_c_a_refresh_never_removes_anything_she_or_the_family_added(self) -> None:
+        async def add(_client, _token, ws):
+            await ws.call("family_hub/rewards/add_catalog_item", title="Canary reward", cost_stars=3)
+
+        async def titles(_client, _token, ws):
+            rewards = (await ws.call("family_hub/rewards/get_state"))["result"]
+            return sorted(r["title"] for r in rewards["catalog"])
+
+        self.admin(add)
+        result = self.refresh()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Canary reward", self.admin(titles))
+
+    def test_z_a_phone_registered_on_preview_is_never_left_as_a_notify_target(self) -> None:
+        her_id = self.user_id(self.HER)
+        login = self.ha.credentials()["members"][self.HER]
+
+        async def register():
+            async with HAClient(self.ha.base_url, self.ha.ca) as client:
+                token = await client.login(login["username"], login["password"])
+                status, body = await client.rest(
+                    "POST",
+                    "/api/mobile_app/registrations",
+                    json={
+                        "app_id": "io.homeassistant.companion.android",
+                        "app_name": "Home Assistant",
+                        "app_version": "2026.1.0",
+                        "device_name": "Jordan phone",
+                        "manufacturer": "Test",
+                        "model": "Pixel",
+                        "os_name": "Android",
+                        "os_version": "15",
+                        "supports_encryption": False,
+                    },
+                    token=token,
+                )
+                return status, body
+
+        status, body = self.ha.run_async(register())
+        self.assertEqual(status, 201, body)
+
+        async def entries(client, token, _ws):
+            return (await client.rest("GET", "/api/config/config_entries/entry?domain=mobile_app", token=token))[1]
+
+        self.assertEqual(len(self.admin(entries)), 1, "the fake Companion device must have registered")
+
+        async def tamper(_client, _token, ws):
+            settings = (await ws.call("family_hub/get_settings"))["result"]["settings"]
+            settings["userProfiles"][her_id]["notifyTargets"] = ["notify.mobile_app_jordan_phone"]
+            await ws.call("family_hub/set_settings", settings=settings)
+
+        self.admin(tamper)
+        failed = self.ha.seed("verify", "--integration-dir", self.served_dir)
+        self.assertEqual(failed.returncode, 1, failed.stdout + failed.stderr)
+        self.assertIn("notify.mobile_app_jordan_phone", failed.stdout)
+
+        result = self.refresh()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.settings()["userProfiles"][her_id]["notifyTargets"], [])
+        again = self.ha.seed("verify", "--integration-dir", self.served_dir)
+        self.assertEqual(again.returncode, 0, again.stdout + again.stderr)
+        self.assertIn("verify: all", again.stdout)
 
 
 if __name__ == "__main__":

@@ -166,6 +166,11 @@ async def _cmd_note(ctx: Context) -> int:
     return 0
 
 
+async def _cmd_refresh(ctx: Context) -> int:
+    """RED-phase stub: replaced by the real refresh in the GREEN commit."""
+    return 0
+
+
 COMMANDS: dict[str, Command] = {
     "wait": Command("wait until Home Assistant answers over verified TLS", _cmd_wait),
     "bootstrap": Command(
@@ -181,6 +186,7 @@ COMMANDS: dict[str, Command] = {
         _cmd_verify,
         _configure_family,
     ),
+    "refresh": Command("RED-phase stub", _cmd_refresh, _configure_family),
     "verify-served": Command(
         "fail unless the instance serves the stamped calendar card and one fresh resource per card",
         _cmd_verify_served,
