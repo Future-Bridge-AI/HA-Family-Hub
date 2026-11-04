@@ -264,7 +264,7 @@ class ResetTests(ScriptCase):
         calls = self.calls()
         self.assertTrue(any(" down" in line for line in calls))
         self.assertFalse(any("up -d" in line for line in calls), calls)
-        self.assertFalse(any(line.startswith("seed") for line in calls), calls)
+        self.assertFalse(any(line.startswith("seed") and "backup-calendars" not in line for line in calls), calls)
         self.assertNotIn("back to the starting week", result.stdout)
 
     def test_a_surviving_backup_alone_is_enough_to_stop(self) -> None:
@@ -273,7 +273,7 @@ class ResetTests(ScriptCase):
         (config / "family_hub_backups" / "chores.json").write_text("old", encoding="utf-8")
         result = self.run_script("reset-preview", "--yes", FH_STUB_NO_WIPE="1")
         self.assertEqual(result.returncode, 1)
-        self.assertFalse(any(line.startswith("seed") for line in self.calls()))
+        self.assertFalse(any(line.startswith("seed") and "backup-calendars" not in line for line in self.calls()))
 
     def test_dev_reset_does_the_same_on_dev(self) -> None:
         config = self.populate("dev")

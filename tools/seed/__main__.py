@@ -9,12 +9,14 @@ from __future__ import annotations
 import argparse
 import asyncio
 import dataclasses
+import datetime
 import logging
 import os
 import sys
 import time
 from typing import Awaitable, Callable, Optional
 
+from . import backup as backup_mod
 from . import bootstrap as bootstrap_mod
 from . import dashboard as dashboard_mod
 from . import content as content_mod
@@ -300,8 +302,33 @@ def _configure_backup(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--backups-dir", default="dev/.ha-backups", help="where the dated backup folders go")
 
 
+async def _snapshots_or_nothing(ctx: Context, family, now: datetime.datetime) -> dict:
+    """Events of the ha-snapshot calendars from the running instance; empty when it cannot be reached.
+
+    A missing answer is not hidden here: backup_calendars turns it into a BackupError naming the
+    calendar, which stops the calling script.
+    """
+    try:
+        async with ctx.client() as client:
+            token, ws = await bootstrap_mod.open_admin(client, ctx.env, ctx.creds())
+            return await backup_mod.read_snapshots(client, token, ws, family, now)
+    except SeedError as err:
+        _stderr("backup: the running instance could not be read (%s)" % err.code)
+        return {}
+
+
 async def _cmd_backup_calendars(ctx: Context) -> int:
-    """Placeholder: replaced by the real backup in the next commit."""
+    """Save every chosen Google calendar to a dated file; a failed calendar stops the caller (exit 5)."""
+    family = family_file_mod.load(ctx.args.family, say)
+    now = datetime.datetime.now().astimezone()
+    snapshots: dict = {}
+    if family.google and any(c["backup"] == "ha-snapshot" for c in family.google["calendars"]):
+        snapshots = await _snapshots_or_nothing(ctx, family, now)
+    say(
+        backup_mod.backup_calendars(
+            family, ctx.env, ctx.args.backups_dir, now, backup_mod.default_fetch, lambda calendar: snapshots.get(calendar["key"])
+        )
+    )
     return 0
 
 
@@ -416,6 +443,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         return err.exit_code
     except FamilyFileError as err:
         print("family file: %s" % err, file=sys.stderr)
+        return err.exit_code
+    except backup_mod.BackupError as err:
+        print(str(err), file=sys.stderr)
         return err.exit_code
     except SeedError as err:
         print("error [%s]: %s" % (err.code, err.message), file=sys.stderr)

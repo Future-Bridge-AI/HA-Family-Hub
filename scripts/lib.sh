@@ -61,6 +61,9 @@ fh_seed() {
   : "${HA_VERSION:?set in versions.env (call fh_load_env first)}"
   mkdir -p "$FH_ROOT/dev/.ha-secrets"
   chmod 700 "$FH_ROOT/dev/.ha-secrets"
+  # The calendar backups (backup-calendars) are written here, outside every Home Assistant volume.
+  mkdir -p "$FH_STATE_DIR/.ha-backups"
+  chmod 700 "$FH_STATE_DIR/.ha-backups"
   # docker run only passes standard input on when told to: needed when a command reads a pipe
   # (google-save --stdin), harmless otherwise.
   local -a stdin_flag=()
@@ -73,6 +76,7 @@ fh_seed() {
     --env-file "$FH_HOST_ENV" \
     -v "$FH_ROOT:/work:ro" \
     -v "$FH_ROOT/dev/.ha-secrets:/work/dev/.ha-secrets" \
+    -v "$FH_STATE_DIR/.ha-backups:/work/dev/.ha-backups" \
     -w /work \
     --entrypoint python3 \
     "ghcr.io/home-assistant/home-assistant:${HA_VERSION}" \
@@ -274,6 +278,16 @@ fh_wipe() {
   fh_wipe_dir "$FH_STATE_DIR/.ha-${1:?fh_wipe needs an environment name}"
 }
 
+# fh_backup_calendars ENV: save every chosen Google calendar to a dated .ics file under
+# dev/.ha-backups/ENV/ (D-08, D-30). It is the first thing every destructive command does, and its
+# exit status stops the caller: when any calendar's backup fails, was empty or was not a calendar
+# file, nothing is stopped, wiped, deployed over or deleted. Call it plainly (never inside an `if`
+# or after `||`), so `set -e` can stop the script. With no Google calendars it does nothing.
+fh_backup_calendars() {
+  local env_name="${1:?fh_backup_calendars needs an environment name}"
+  fh_seed "$env_name" backup-calendars
+}
+
 # fh_google_save ENV: keep the Google sign-in of the STOPPED instance (D-10). The config entries file
 # is read through a throwaway container of the pinned image (read-only mount, it is root-owned) and
 # piped into the seed tool, which keeps the one Google entry in dev/.ha-secrets (0600). The seed
@@ -320,7 +334,9 @@ fh_reset_env() {
   label="$(fh_env_label "$env_name")"
   fh_confirm "$env_name" "$assume_yes"
   fh_lock "$env_name"
-  # D-08: the Google calendar backup goes here (plan 02-08). Until then a Google block in the family file is refused, so no Google-connected instance can reach this line.
+  # D-08: before anything is stopped or erased, every chosen Google calendar is saved; a failure stops the reset here.
+  fh_info "Backing up the chosen Google calendars"
+  fh_backup_calendars "$env_name"
   fh_info "Stopping $label"
   fh_compose "$env_name" down
   fh_google_save "$env_name"

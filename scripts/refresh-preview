@@ -22,12 +22,14 @@ done
 
 fh_load_env
 fh_lock preview
-# D-08: the Google calendar backup goes here (plan 02-08). Until then a Google block in the family file is refused, so no Google-connected instance can reach this line.
 
 # WSL stops when nothing holds it open, which takes Preview with it (Pitfall 5): say so plainly.
 if ! fh_seed preview --timeout 300 wait; then
   echo "Preview is not running - refresh skipped (is WSL/Docker up?)" >&2
   exit 1
 fi
+# D-08: every chosen Google calendar is saved before the refresh writes anything. This is after the
+# running check because a calendar kept as an ha-snapshot is read from the running instance.
+fh_backup_calendars preview
 fh_seed preview refresh
 echo "Preview refreshed: $(date +%Y-%m-%d)"

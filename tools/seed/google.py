@@ -157,7 +157,7 @@ async def ensure_credential(
     return "created"
 
 
-async def _google_entries(client: HAClient, token: str) -> list[dict]:
+async def google_entries(client: HAClient, token: str) -> list[dict]:
     status, body = await client.rest("GET", "/api/config/config_entries/entry?domain=%s" % DOMAIN, token=token)
     if status != 200 or not isinstance(body, list):
         raise SeedError("http", "listing the Google config entries failed (HTTP %s): %s" % (status, body))
@@ -215,7 +215,7 @@ async def link(
         await _load_component(client, token)
 
     await ensure_credential(ws, google_block, env, load_component, say)
-    entries = await _google_entries(client, token)
+    entries = await google_entries(client, token)
     if not entries:
         raise SeedError(SIGNIN_CODE, SIGNIN_HELP + " (no Google entry exists yet)")
     if len(entries) > 1:
@@ -230,7 +230,7 @@ async def link(
             _LOGGER.debug("reload of %s answered HTTP %s: %s", entry_id, status, body)
     deadline = time.monotonic() + timeout
     while True:
-        entry = next((e for e in await _google_entries(client, token) if e["entry_id"] == entry_id), None)
+        entry = next((e for e in await google_entries(client, token) if e["entry_id"] == entry_id), None)
         if entry is None:
             raise SeedError("google_entry", "the Google entry %s disappeared" % entry_id)
         state = entry.get("state")

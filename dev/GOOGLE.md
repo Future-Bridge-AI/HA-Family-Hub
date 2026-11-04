@@ -149,3 +149,49 @@ google:
 | `calendars[].expect_events` | pretend events go here (default false; needs `writable: true`) |
 | `calendars[].backup` | `ical` (secret address, default) or `ha-snapshot` |
 | `calendars[].ical_secret_url` | required for `backup: ical`; must start with `https://calendar.google.com/calendar/ical/` and end with `.ics` |
+
+## 9. Restore an event from a backup
+
+Before every `deploy-preview`, `reset-preview`, `dev-reset` and `refresh-preview`, each chosen calendar
+is saved to `dev/.ha-backups/<env>/<YYYY-MM-DD_HHMMSS>/<key>.ics` (owner-only, outside the Home Assistant
+folder). The save comes first: if any calendar's backup fails, is empty or is not a calendar file, the
+command stops with `backup failed for <key>: <reason> - nothing was changed`, before anything is
+stopped, wiped or deleted. Fix the cause (usually a changed secret address, or no internet) and run it
+again. A calendar kept as `ha-snapshot` is read from the running instance, so a reset or deploy of a
+stopped environment stops on it until you start the environment (or give that calendar a secret address).
+
+To put one event back after a mistake:
+
+1. Find the newest folder in `dev/.ha-backups/<env>/` from **before** the mistake, and open
+   `<key>.ics` in it with a plain text editor.
+2. Find the event (search for its title). Copy its whole block, from `BEGIN:VEVENT` down to the matching
+   `END:VEVENT`.
+3. Make a new file, `restore.ics`, that starts with the first lines of the backup file (everything above
+   the first `BEGIN:VEVENT`, which begins with `BEGIN:VCALENDAR`), then the block you copied, then
+   `END:VCALENDAR` on its own last line.
+4. In Google Calendar open Settings > **Import & export** > Import, choose `restore.ics` and the
+   calendar to put the event back in. Check the event is there, once.
+
+Notes:
+
+- Assumption A12, still to be confirmed: Google Calendar's Import should accept a file with a single
+  event. Try this once on a throwaway calendar at the laptop checkpoint (plan 02-09), so the first real
+  restore is not the first attempt.
+- Importing adds the event again as a new copy; it does not remove the changed one, so delete the damaged
+  copy by hand.
+- A calendar saved with `backup: ha-snapshot` is a `<key>.json` file with that calendar's events (90 days
+  back to a year ahead). It cannot be imported: read the event from it and create it again by hand.
+- A backup freshness note (assumption A11): Google's secret iCal feed can lag a little behind the live
+  calendar, so a change made in the last few minutes before a backup may not be in it.
+
+### Disk use and pruning
+
+Each backup is small (a calendar file is usually a few hundred kilobytes). Every deploy, reset and
+refresh adds one dated folder per environment, so the folders add up. To prune, delete the dated folders
+you no longer want (the folder name is the date), for example everything older than a month:
+
+```
+find dev/.ha-backups/preview -mindepth 1 -maxdepth 1 -type d -mtime +30 -exec rm -rf {} +
+```
+
+Keep at least the newest folder from before any risky experiment.

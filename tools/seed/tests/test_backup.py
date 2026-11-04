@@ -80,7 +80,7 @@ class BackupCalendarsTests(unittest.TestCase):
         self.assertEqual(line, "backup: 2 calendars -> %s" % os.path.join(self.root, "dev", STAMP))
         for key in ("family", "school"):
             path = self.stamp_dir() / ("%s.ics" % key)
-            self.assertEqual(path.read_text(encoding="utf-8"), VALID)
+            self.assertEqual(path.read_bytes().decode("utf-8"), VALID, "stored exactly as Google sent it")
             self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
         self.assertEqual(stat.S_IMODE(self.stamp_dir().stat().st_mode), 0o700)
         self.assertEqual(sorted(p.name for p in self.stamp_dir().iterdir()), ["family.ics", "school.ics"])
