@@ -72,7 +72,7 @@ Plans:
   4. The developer checks a trivial visible change (e.g. a title text) in Dev, which starts with one command on the same pretend data and shows edits live. The developer then runs `deploy-preview <branch>`. After a refresh, she sees the new text and a newer build stamp in Preview and confirms it.
   5. After she has ticked chores and redeemed rewards, one `reset-preview` brings back the original pretend week with no old data resurrected. On a fresh Preview the Family Hub dashboard and cards are in place without manual setup, and Dev resets the same way.
 
-**Plans:** 4/10 plans executed
+**Plans:** 6/10 plans executed
 
 Plans:
 **Wave 1**
@@ -82,8 +82,8 @@ Plans:
 - [x] 02-04-PLAN.md — Reword ROADMAP, REQUIREMENTS and PROJECT for the laptop host and the real Google calendars (D-03, D-07, D-28)
 
 **Wave 2** *(blocked on 02-01, 02-02)*
-- [ ] 02-05-PLAN.md — Seed the pretend family: users, lists, Family Hub entry, content, dashboard, her sidebar, isolation verify
-- [ ] 02-06-PLAN.md — Tagged seed events: exact D-11 matcher, week-anchored diff sync, dry run, live Local Calendar proof
+- [x] 02-05-PLAN.md — Seed the pretend family: users, lists, Family Hub entry, content, dashboard, her sidebar, isolation verify
+- [x] 02-06-PLAN.md — Tagged seed events: exact D-11 matcher, week-anchored diff sync, dry run, live Local Calendar proof
 
 **Wave 3** *(blocked on 02-02, 02-03, 02-05, 02-06)*
 - [ ] 02-07-PLAN.md — deploy-preview with verified stamp and hand-off note, reset-preview / dev-reset, refresh-preview
@@ -166,7 +166,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4. Phase 3 depends only on Ph
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Clean Foundation | 7/7 | Complete    | 2026-10-27 |
-| 2. Dev + Family Preview | 4/10 | In Progress | - |
+| 2. Dev + Family Preview | 6/10 | In Progress | - |
 | 3. Safety Net | 0/TBD | Not started | - |
 | 4. Family-Led Customisation Loop | 0/TBD | Not started | - |
 
