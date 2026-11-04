@@ -18,6 +18,7 @@ one plain instruction, never as a half-seeded instance.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
 import logging
 import os
@@ -242,3 +243,25 @@ async def link(
         if time.monotonic() >= deadline:
             raise _signin_error(str(state), entry.get("reason"))
         await asyncio.sleep(1)
+
+
+@dataclasses.dataclass
+class Selection:
+    """What the calendar selection changes: entity ids to keep, disable and enable, and chosen ids with no entity."""
+
+    keep: list = dataclasses.field(default_factory=list)
+    disable: list = dataclasses.field(default_factory=list)
+    enable: list = dataclasses.field(default_factory=list)
+    missing: list = dataclasses.field(default_factory=list)
+
+
+def select_entities(registry: list, entry_unique_id: str, chosen_ids: list, entry_id: Optional[str] = None) -> Selection:
+    return Selection()
+
+
+def google_slots(family: Any, entity_map: dict) -> list:
+    return []
+
+
+def member_calendars(family: Any, entity_map: dict) -> dict:
+    return {}

@@ -187,7 +187,9 @@ async def ensure_family_hub_entry(
     say("family hub: already set up (%d members)" % len(family.members))
 
 
-def calendar_slots(family: Family, calendars: dict[str, str]) -> list[events.CalendarSlot]:
+def calendar_slots(
+    family: Family, calendars: dict[str, str], google_slots: tuple = ()
+) -> list[events.CalendarSlot]:
     """The calendars the pretend events go on: one writable slot per member with a Local Calendar.
 
     ``calendars`` is what ensure_local_calendars returned (``first_name -> entity id``). Members
