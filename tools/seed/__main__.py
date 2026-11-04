@@ -15,8 +15,10 @@ from typing import Awaitable, Callable, Optional
 
 from . import bootstrap as bootstrap_mod
 from . import dashboard as dashboard_mod
+from . import content as content_mod
 from . import entries as entries_mod
 from . import family_file as family_file_mod
+from . import family_hub as family_hub_mod
 from . import resources as resources_mod
 from . import users as users_mod
 from .client import HAClient, SeedError
@@ -107,6 +109,9 @@ async def _cmd_seed(ctx: Context) -> int:
         calendars = await entries_mod.ensure_local_calendars(client, token, ws, family, say)
         await entries_mod.ensure_family_hub_entry(client, token, ws, family, user_ids, calendars, say)
         await dashboard_mod.ensure_dashboard(ws, ctx.env, family, calendars, say)
+        today, zone = await family_hub_mod.instance_today(ws)
+        week = content_mod.build_content(family, ctx.env, today)
+        await family_hub_mod.apply_content(ws, family, user_ids, week, creds, ctx.env, zone, say)
         for member in family.members:
             if not member.admin:
                 hidden = await dashboard_mod.set_member_sidebar(client, creds, member)

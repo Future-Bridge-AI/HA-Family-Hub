@@ -66,6 +66,7 @@ class Goal:
     title: str
     assignee: str
     target_count: int
+    star_value: int = 5  # a star-reward goal needs a positive value
 
 
 @dataclasses.dataclass(frozen=True)

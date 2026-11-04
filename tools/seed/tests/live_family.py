@@ -10,11 +10,13 @@ from __future__ import annotations
 
 import subprocess
 import unittest
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from tools.seed.client import HAClient
 from tools.seed.dashboard import DASHBOARD_VIEWS, KEEP_PANELS
 
-from .live_ha import LiveHA
+from .live_ha import HOST_ENV, LiveHA
 
 # The invented example family (tools/seed/data/family.example.yaml).
 ADMIN_PARENT = "Sam"
@@ -78,6 +80,43 @@ class LiveFamilyTests(unittest.TestCase):
             return (await ws.call("config/auth/list"))["result"]
 
         return {u["name"]: u for u in self.read_admin(read) if not u["system_generated"]}
+
+    def child_ids(self) -> dict[str, str]:
+        users = self.users()
+        return {name: users[name]["id"] for name in CHILDREN}
+
+    def snapshot(self) -> dict:
+        """What the cards would read back, as counts and sets (used to prove a re-seed adds nothing)."""
+
+        async def read(_client, _token, ws):
+            async def items(entity):
+                reply = await ws.call(
+                    "call_service",
+                    domain="todo",
+                    service="get_items",
+                    service_data={"entity_id": entity, "status": ["needs_action", "completed"]},
+                    return_response=True,
+                )
+                return reply["result"]["response"][entity]["items"]
+
+            rewards = (await ws.call("family_hub/rewards/get_state"))["result"]
+            return {
+                "chores": sorted(
+                    (c["title"], c["assigned_to"]) for c in (await ws.call("family_hub/chores/list"))["result"]["chores"]
+                ),
+                "catalog": sorted(r["title"] for r in rewards["catalog"]),
+                "balances": rewards["balances"],
+                "goals": len((await ws.call("family_hub/goals/list"))["result"]["goals"]),
+                "routines": len((await ws.call("family_hub/routines/list"))["result"]["items"]),
+                "pantry": len((await ws.call("family_hub/pantry_extras/list"))["result"]["extras"]),
+                "recipes": len((await ws.call("family_hub/get_recipes"))["result"]["recipes"]),
+                "meals": sorted(i["due"] for i in await items("todo.meal_plan")),
+                "groceries": len(await items("todo.groceries")),
+                "errands": len(await items("todo.errands")),
+                "suggestions": len(await items("todo.meal_suggestions")),
+            }
+
+        return self.read_admin(read)
 
     # -- task 1: her login lands on the Family Hub dashboard --------------------------------------
 
@@ -152,11 +191,78 @@ class LiveFamilyTests(unittest.TestCase):
             self.assertTrue(view["icon"].startswith("mdi:"), view)
             self.assertEqual(len(view["cards"]), 1)
 
+    # -- task 2: her pretend week ------------------------------------------------------------------
+
+    def test_g_each_child_has_recurring_chores_two_of_them_due_today(self) -> None:
+        zone = ZoneInfo(HOST_ENV["TZ"])
+        today = datetime.now(zone).date()
+
+        async def read(_client, _token, ws):
+            return (await ws.call("family_hub/chores/list"))["result"]["chores"]
+
+        chores = self.read_admin(read)
+        for name, user_id in self.child_ids().items():
+            mine = [c for c in chores if c["assigned_to"] == user_id]
+            self.assertTrue(4 <= len(mine) <= 6, "%s has %d chores" % (name, len(mine)))
+            due = [datetime.fromisoformat(c["due_date"]).astimezone(zone).date() for c in mine]
+            self.assertGreaterEqual(sum(1 for d in due if d == today), 2, name)
+            self.assertTrue(all(d >= today for d in due), "an overdue chore for %s" % name)
+            for chore in mine:
+                self.assertTrue(chore["recur_type"] in ("interval", "weekdays"), chore)
+                self.assertEqual(chore["reminder_minutes"], [])
+                self.assertTrue(chore["no_approval_required"])
+
+    def test_h_rewards_and_balances(self) -> None:
+        snap = self.snapshot()
+        self.assertEqual(len(snap["catalog"]), 5)
+        for user_id in self.child_ids().values():
+            self.assertEqual(snap["balances"].get(user_id), 18)
+
+    def test_i_dinners_on_six_of_the_next_seven_nights(self) -> None:
+        today = datetime.now(ZoneInfo(HOST_ENV["TZ"])).date()
+        window = {(today + timedelta(days=n)).isoformat() for n in range(7)}
+        dues = [d[:10] for d in self.snapshot()["meals"]]
+        self.assertEqual(len(dues), 6)
+        self.assertTrue(set(dues) <= window)
+
+    def test_j_lists_recipes_pantry_goal_and_routine(self) -> None:
+        snap = self.snapshot()
+        self.assertEqual((snap["groceries"], snap["errands"], snap["suggestions"]), (6, 3, 1))
+        self.assertEqual(snap["recipes"], 3)
+        self.assertEqual(snap["pantry"], 3)
+        self.assertEqual(snap["goals"], 1)
+        self.assertEqual(snap["routines"], 6)
+
+    def test_k_theme_and_kid_sign_in(self) -> None:
+        async def read(_client, _token, ws):
+            return (await ws.call("family_hub/get_settings"))["result"]["settings"]
+
+        settings = self.read_admin(read)
+        self.assertEqual(settings["globalThemeId"], "blossom")
+        self.assertTrue(settings["useGlobalTheme"])
+        self.assertTrue(set(self.child_ids().values()) <= set(settings["kioskLoginEnabledUserIds"]))
+
+    def test_y_kid_pin_signs_in_through_kiosk_elevate(self) -> None:
+        creds = self.ha.credentials()["members"]
+        users = self.users()
+
+        async def elevate(ws):
+            outcome = {}
+            for name in CHILDREN:
+                reply = await ws.call("family_hub/kiosk/elevate", user_id=users[name]["id"], pin=creds[name]["pin"])
+                outcome[name] = reply["result"]["user_id"]
+            return outcome
+
+        outcome = self.as_member(HER, elevate)
+        self.assertEqual(outcome, {name: users[name]["id"] for name in CHILDREN})
+
     def test_z_second_seed_changes_nothing(self) -> None:
         before = {name: u["id"] for name, u in self.users().items()}
+        content_before = self.snapshot()
         second = self.ha.seed("seed")
         self.assertEqual(second.returncode, 0, second.stderr + second.stdout)
         self.assertEqual({name: u["id"] for name, u in self.users().items()}, before)
+        self.assertEqual(self.snapshot(), content_before)
 
         async def read(client, token, ws):
             entries = (await client.rest("GET", "/api/config/config_entries/entry", token=token))[1]
