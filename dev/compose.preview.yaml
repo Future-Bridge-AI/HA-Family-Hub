@@ -1,0 +1,15 @@
+# Preview overlay: the instance she tries things on from her phone.
+# Project name familyhub-preview, so Preview never shares a container or volume with Dev.
+# - Published on ${PREVIEW_BIND:-0.0.0.0}:8124 so a phone on the home network can reach it. Run
+#   scripts/preview-down before taking the laptop to another network.
+# - restart: unless-stopped brings it back after a Docker or laptop restart, but not after
+#   scripts/preview-down (a stopped container stays stopped).
+# - No source tree is mounted: the integration under .ha-preview/custom_components/family_hub is an
+#   exported copy that scripts/deploy-preview swaps in, so Preview only ever runs a committed ref.
+services:
+  ha:
+    restart: unless-stopped
+    ports:
+      - "${PREVIEW_BIND:-0.0.0.0}:8124:8123"
+    volumes:
+      - ./.ha-preview:/config

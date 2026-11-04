@@ -16,6 +16,7 @@ from typing import Awaitable, Callable, Optional
 from . import bootstrap as bootstrap_mod
 from . import dashboard as dashboard_mod
 from . import content as content_mod
+from . import deploy as deploy_mod
 from . import entries as entries_mod
 from . import family_file as family_file_mod
 from . import family_hub as family_hub_mod
@@ -137,6 +138,34 @@ async def _cmd_seed(ctx: Context) -> int:
         return await _verify(ctx, client, token, ws, family, creds)
 
 
+def _configure_verify_served(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--expect", required=True, help="the build stamp deploy-preview wrote, e.g. 'Preview · 2.0.0+a1b2c3d · 4 Nov 14:05'")
+    parser.add_argument("--integration-dir", default=None, help="directory holding card/ and panel/")
+
+
+async def _cmd_verify_served(ctx: Context) -> int:
+    """Prove the instance serves the stamped card and one up-to-date resource per card."""
+    integration_dir = ctx.args.integration_dir or DEFAULT_INTEGRATION_DIR[ctx.env.key]
+    async with ctx.client() as client:
+        token, _ws = await bootstrap_mod.open_admin(client, ctx.env, ctx.creds())
+        await deploy_mod.verify_served(client, token, integration_dir, ctx.args.expect, say)
+    return 0
+
+
+def _configure_note(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--stamp", required=True, help="the build stamp the note tells her to look for")
+    parser.add_argument("--what", default=None, help="one plain sentence: what changed")
+    parser.add_argument("--view", default=None, help="the tab to open, e.g. Chores")
+    parser.add_argument("--tap", default=None, help="what to tap there, e.g. the + button")
+
+
+async def _cmd_note(ctx: Context) -> int:
+    """Print the hand-off note (no connection to Home Assistant is made)."""
+    for line in deploy_mod.handoff_note(ctx.args.stamp, ctx.args.what, ctx.args.view, ctx.args.tap):
+        say(line)
+    return 0
+
+
 COMMANDS: dict[str, Command] = {
     "wait": Command("wait until Home Assistant answers over verified TLS", _cmd_wait),
     "bootstrap": Command(
@@ -151,6 +180,16 @@ COMMANDS: dict[str, Command] = {
         "fail if anything could reach a real phone or anything she relies on is missing",
         _cmd_verify,
         _configure_family,
+    ),
+    "verify-served": Command(
+        "fail unless the instance serves the stamped calendar card and one fresh resource per card",
+        _cmd_verify_served,
+        _configure_verify_served,
+    ),
+    "note": Command(
+        "print the plain hand-off note for her after a deploy",
+        _cmd_note,
+        _configure_note,
     ),
     "resources-sync": Command(
         "point each card's lovelace resource at the hash of the file being served",
