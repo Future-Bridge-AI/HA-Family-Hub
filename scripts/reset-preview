@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Erase all Family Hub PREVIEW data and bring back the starting week. The same logins come back
+# (the credentials file is kept), but her phone may ask her to sign in again.
+# Asks for a typed PREVIEW; --yes skips the question (for the scheduler).
+#
+#   scripts/reset-preview [--yes]
+set -euo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
+ASSUME_YES=false
+for arg in "$@"; do
+  case "$arg" in
+    --yes) ASSUME_YES=true ;;
+    *)
+      echo "usage: scripts/reset-preview [--yes]" >&2
+      exit 2
+      ;;
+  esac
+done
+
+fh_load_env
+fh_reset_env preview "$ASSUME_YES"
+echo "Preview is back to the starting week. She may need to sign in again with her usual details."

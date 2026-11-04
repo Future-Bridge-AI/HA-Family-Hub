@@ -1,7 +1,7 @@
 # Family Hub — Changelog
 
 The live changelog, newest first. Entries older than v138 (1.103.0) live
-in [CHANGELOG_ARCHIVE.md](CHANGELOG_ARCHIVE.md).
+in [the changelog archive](website/docs/changelog-archive.md).
 
 > **Note:** this file's entries currently run through v1.135.4. Everything
 > from v1.136.0 through the current release hasn't been written up here

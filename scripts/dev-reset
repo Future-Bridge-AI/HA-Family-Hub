@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Erase all Family Hub DEV data (including family_hub_backups) and bring back the starting week.
+# Dev keeps its read-only working-copy mount of the integration. Asks for a typed DEV; --yes skips
+# the question.
+#
+#   scripts/dev-reset [--yes]
+set -euo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
+ASSUME_YES=false
+for arg in "$@"; do
+  case "$arg" in
+    --yes) ASSUME_YES=true ;;
+    *)
+      echo "usage: scripts/dev-reset [--yes]" >&2
+      exit 2
+      ;;
+  esac
+done
+
+fh_load_env
+fh_reset_env dev "$ASSUME_YES"
+echo "Dev is back to the starting week."

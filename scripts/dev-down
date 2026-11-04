@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Stop Dev. Its data stays in dev/.ha-dev, so scripts/dev-up brings it back as it was.
+set -euo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
+fh_load_env
+fh_compose dev stop
+echo "Dev is stopped."

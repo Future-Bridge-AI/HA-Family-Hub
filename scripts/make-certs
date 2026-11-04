@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+# Create (once) a name-constrained local root CA and issue the HTTPS leaf certificate that Dev
+# and Preview serve. Usage: scripts/make-certs [--out DIR] [--ip IP]
+#
+# - The CA is created once and reused (ca.key, ca.crt). It may only vouch for private LAN
+#   addresses, loopback and "localhost", so installing ca.crt on a phone or in the Windows
+#   trust store cannot be abused for public sites.
+# - The leaf is signed DIRECTLY by the root (no intermediate): the Android Companion app has an
+#   open issue with leaf-plus-intermediate chains of a custom root (home-assistant/android#7346).
+# - Only ca.crt is ever copied to a phone or a trust store. ca.key never leaves this directory.
+#
+# Standalone on purpose: it does not source scripts/lib.sh.
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+OUT="$REPO_ROOT/dev/.ha-certs"
+IP=""
+
+die() { echo "make-certs: $1" >&2; exit "${2:-1}"; }
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --out) [ $# -ge 2 ] || die "--out needs a directory" 2; OUT="$2"; shift 2 ;;
+    --ip) [ $# -ge 2 ] || die "--ip needs an address" 2; IP="$2"; shift 2 ;;
+    -h|--help) sed -n '2,12p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    *) die "unknown argument: $1" 2 ;;
+  esac
+done
+
+if [ -z "$IP" ]; then
+  HOST_ENV="$REPO_ROOT/dev/host.env"
+  [ -f "$HOST_ENV" ] || die "dev/host.env is missing: copy dev/host.env.example to dev/host.env and set PREVIEW_HOST_IP" 1
+  # Parsed, never sourced: the file may hold other values and must not run as code.
+  IP="$(grep -E '^PREVIEW_HOST_IP=' "$HOST_ENV" | tail -n 1 | cut -d= -f2- | tr -d '[:space:]"'"'" || true)"
+  [ -n "$IP" ] || die "PREVIEW_HOST_IP is not set in dev/host.env" 1
+fi
+
+# Only a plain dotted IPv4 inside 10/8, 172.16/12 or 192.168/16 is accepted.
+if ! [[ "$IP" =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$ ]]; then
+  die "$IP is not a private LAN address (expected a dotted IPv4 address)" 2
+fi
+o1=$((10#${BASH_REMATCH[1]})); o2=$((10#${BASH_REMATCH[2]})); o3=$((10#${BASH_REMATCH[3]})); o4=$((10#${BASH_REMATCH[4]}))
+if [ "$o1" -gt 255 ] || [ "$o2" -gt 255 ] || [ "$o3" -gt 255 ] || [ "$o4" -gt 255 ]; then
+  die "$IP is not a private LAN address (octet above 255)" 2
+fi
+if ! { [ "$o1" -eq 10 ] || { [ "$o1" -eq 172 ] && [ "$o2" -ge 16 ] && [ "$o2" -le 31 ]; } || { [ "$o1" -eq 192 ] && [ "$o2" -eq 168 ]; }; }; then
+  die "$IP is not a private LAN address (use 10.x.x.x, 172.16-31.x.x or 192.168.x.x)" 2
+fi
+IP="$o1.$o2.$o3.$o4"
+
+command -v openssl >/dev/null 2>&1 || die "openssl is required" 1
+
+umask 077
+mkdir -p "$OUT"
+chmod 700 "$OUT"
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+
+# --- Root CA (created once, reused) -----------------------------------------------------------
+if [ -f "$OUT/ca.key" ] && [ -f "$OUT/ca.crt" ]; then
+  echo "CA: reusing $OUT/ca.crt"
+else
+  cat > "$TMP/ca.cnf" <<'EOF'
+[req]
+distinguished_name = dn
+prompt = no
+x509_extensions = v3_ca
+
+[dn]
+CN = Family Hub local CA
+O = Family Hub
+
+[v3_ca]
+basicConstraints = critical, CA:TRUE, pathlen:0
+keyUsage = critical, keyCertSign, cRLSign
+subjectKeyIdentifier = hash
+nameConstraints = critical, @name_constraints
+
+[name_constraints]
+permitted;IP.0 = 10.0.0.0/255.0.0.0
+permitted;IP.1 = 172.16.0.0/255.240.0.0
+permitted;IP.2 = 192.168.0.0/255.255.0.0
+permitted;IP.3 = 127.0.0.0/255.0.0.0
+permitted;DNS.0 = localhost
+EOF
+  openssl ecparam -name prime256v1 -genkey -noout -out "$OUT/ca.key"
+  openssl req -x509 -new -key "$OUT/ca.key" -sha256 -days 1095 -config "$TMP/ca.cnf" -extensions v3_ca -out "$OUT/ca.crt"
+  echo "CA: created $OUT/ca.crt (valid 1095 days, private LAN and localhost only)"
+fi
+
+# --- Leaf, signed directly by the root --------------------------------------------------------
+need_leaf=1
+if [ -f "$OUT/leaf.crt" ] && [ -f "$OUT/leaf.key" ]; then
+  if openssl x509 -in "$OUT/leaf.crt" -noout -ext subjectAltName 2>/dev/null | grep -Fq "IP Address:$IP" \
+     && openssl verify -CAfile "$OUT/ca.crt" "$OUT/leaf.crt" >/dev/null 2>&1; then
+    need_leaf=0
+  fi
+fi
+
+if [ "$need_leaf" -eq 1 ]; then
+  cat > "$TMP/leaf.cnf" <<EOF
+[req]
+distinguished_name = dn
+prompt = no
+
+[dn]
+CN = Family Hub
+
+[v3_req]
+basicConstraints = critical, CA:FALSE
+keyUsage = critical, digitalSignature
+extendedKeyUsage = serverAuth
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always
+subjectAltName = IP:$IP, IP:127.0.0.1, DNS:localhost
+EOF
+  openssl ecparam -name prime256v1 -genkey -noout -out "$OUT/leaf.key"
+  openssl req -new -key "$OUT/leaf.key" -config "$TMP/leaf.cnf" -out "$TMP/leaf.csr"
+  openssl x509 -req -in "$TMP/leaf.csr" -CA "$OUT/ca.crt" -CAkey "$OUT/ca.key" -CAcreateserial \
+    -days 365 -sha256 -extfile "$TMP/leaf.cnf" -extensions v3_req -out "$OUT/leaf.crt" 2>/dev/null
+  echo "leaf: issued for $IP, 127.0.0.1 and localhost (valid 365 days)"
+else
+  echo "leaf: reusing $OUT/leaf.crt (covers $IP)"
+fi
+
+cat "$OUT/leaf.crt" "$OUT/ca.crt" > "$OUT/fullchain.pem"
+cp "$OUT/leaf.key" "$OUT/privkey.pem"
+chmod 600 "$OUT/ca.key" "$OUT/leaf.key" "$OUT/privkey.pem"
+chmod 644 "$OUT/ca.crt" "$OUT/leaf.crt" "$OUT/fullchain.pem"
+
+verdict="$(openssl verify -CAfile "$OUT/ca.crt" "$OUT/leaf.crt" 2>&1 || true)"
+case "$verdict" in
+  *": OK") echo "verify: OK" ;;
+  *) die "openssl verify did not report OK: $verdict" 1 ;;
+esac

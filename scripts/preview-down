@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Stop Preview. Run this before taking the laptop to a network that is not home: Preview is
+# published on the home network so her phone can reach it. Its data stays in dev/.ha-preview.
+set -euo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
+fh_load_env
+fh_compose preview stop
+echo "Preview is stopped. Start it again with scripts/deploy-preview <branch> or scripts/reset-preview."

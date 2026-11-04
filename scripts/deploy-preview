@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+# Put a git ref on Family Hub PREVIEW, prove the new cards are what Home Assistant serves, and print
+# the note to pass on to her.
+#
+#   scripts/deploy-preview <branch|tag|commit> [--what TEXT] [--view NAME] [--tap TEXT]
+#
+# The code comes from `git archive` of the resolved commit, so uncommitted edits are never deployed
+# and a ref that does not resolve fails before Preview is touched. The previous copy stays in place
+# until the new one has been exported and stamped, and is deleted only after the served card has been
+# checked.
+set -euo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
+usage() {
+  echo "usage: scripts/deploy-preview <branch|tag|commit> [--what TEXT] [--view NAME] [--tap TEXT]" >&2
+  exit 2
+}
+
+REF=""
+WHAT=""
+VIEW=""
+TAP=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --what | --view | --tap)
+      [ $# -ge 2 ] || usage
+      case "$1" in
+        --what) WHAT="$2" ;;
+        --view) VIEW="$2" ;;
+        --tap) TAP="$2" ;;
+      esac
+      shift 2
+      ;;
+    -h | --help) usage ;;
+    -*) usage ;;
+    *)
+      [ -z "$REF" ] || usage
+      REF="$1"
+      shift
+      ;;
+  esac
+done
+[ -n "$REF" ] || usage
+
+STEP=0
+STEP_NAME="reading the command line"
+FINISHED=0
+STOPPED=0
+SWAPPED=0
+FH_DEPLOY_WORK=""
+
+step() {
+  STEP=$((STEP + 1))
+  STEP_NAME="$1"
+  fh_info "Step $STEP: $1"
+}
+
+# Runs on every exit. A failure prints which step failed and never the "ready" line; if it came after
+# the swap it also says which copy is live now.
+on_exit() {
+  local rc=$?
+  trap - EXIT
+  if [ "$rc" -ne 0 ] && [ "$FINISHED" != 1 ]; then
+    {
+      echo
+      echo "deploy-preview failed at step $STEP ($STEP_NAME): see the output above"
+      if [ "$SWAPPED" = 1 ]; then
+        echo "The NEW copy of $REF is the live one on disk now (it was not fully checked)."
+        echo "The previous copy is kept in $FH_DEPLOY_WORK/previous (put it back by hand to roll back)."
+      elif [ "$STOPPED" = 1 ]; then
+        echo "The previous copy is still the live one. Preview was stopped: starting it again."
+      else
+        echo "Nothing was changed: the previous copy, if there is one, is still the live one."
+      fi
+    } >&2
+    if [ "$STOPPED" = 1 ] && [ "$SWAPPED" != 1 ]; then
+      fh_compose preview up -d >&2 || echo "could not start Preview again: run scripts/deploy-preview or scripts/reset-preview" >&2
+    fi
+    if [ "$SWAPPED" != 1 ] && [ -n "$FH_DEPLOY_WORK" ]; then
+      rm -rf "$FH_DEPLOY_WORK" || true
+    fi
+  fi
+  exit "$rc"
+}
+trap on_exit EXIT
+
+step "taking the lock"
+fh_load_env
+fh_lock preview
+
+# D-08: every chosen Google calendar is saved first. A failed backup stops the deploy here, before
+# anything is exported, stopped or swapped.
+step "backing up the chosen Google calendars"
+fh_backup_calendars preview
+
+step "exporting $REF and stamping the build"
+mkdir -p "$FH_STATE_DIR"
+FH_DEPLOY_WORK="$(mktemp -d "$FH_STATE_DIR/.ha-deploy.XXXXXX")"
+fh_export_build "$REF" "$FH_DEPLOY_WORK/new" Preview
+# shellcheck disable=SC1091
+. "$FH_DEPLOY_WORK/new/fh-build.env"
+fh_info "Exported ${FH_SHORT} (${FH_VERSION}) as: ${FH_STAMP}"
+
+step "preparing certificates and configuration"
+fh_ensure_certs
+fh_ensure_config preview
+
+step "swapping in the new copy and starting Preview"
+fh_compose preview stop
+STOPPED=1
+fh_swap_integration preview "$FH_DEPLOY_WORK/new/custom_components/family_hub"
+SWAPPED=1
+fh_compose preview up -d
+
+step "seeding Preview (adds only what is missing)"
+fh_seed preview seed
+
+step "checking that Preview serves the new cards"
+fh_seed preview verify-served --expect "$FH_STAMP"
+
+step "writing the hand-off note"
+note_args=(--stamp="$FH_STAMP")
+[ -z "$WHAT" ] || note_args+=(--what="$WHAT")
+[ -z "$VIEW" ] || note_args+=(--view="$VIEW")
+[ -z "$TAP" ] || note_args+=(--tap="$TAP")
+echo
+fh_seed preview note "${note_args[@]}"
+
+step "removing the previous copy"
+FINISHED=1
+rm -rf "$FH_DEPLOY_WORK" || echo "NOTE: could not delete $FH_DEPLOY_WORK (root-owned files?): delete it by hand" >&2
