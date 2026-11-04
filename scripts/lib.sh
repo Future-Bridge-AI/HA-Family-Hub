@@ -201,3 +201,94 @@ fh_swap_integration() {
   fi
   mv "$src" "$live" || fh_die "could not move the new copy into place"
 }
+
+# fh_confirm ENV ASSUME_YES: ask the developer to type the environment's word before anything is
+# erased. ASSUME_YES (true) skips the question for the scheduler; without a terminal and without it
+# nobody can be asked, so the command refuses.
+fh_confirm() {
+  local env_name="${1:?fh_confirm needs an environment name}"
+  local assume_yes="${2:-false}"
+  local prompt word answer
+  case "$env_name" in
+    preview)
+      word="PREVIEW"
+      prompt="This will erase all Preview data and re-seed it. Type PREVIEW to continue:"
+      ;;
+    dev)
+      word="DEV"
+      prompt="This will erase all Dev data and re-seed it. Type DEV to continue:"
+      ;;
+    *) fh_die "fh_confirm: unknown environment '$env_name'" ;;
+  esac
+  if [ "$assume_yes" = "true" ]; then
+    return 0
+  fi
+  if [ ! -t 0 ]; then
+    fh_die "refusing without --yes: there is no terminal to ask in (add --yes to erase without asking)"
+  fi
+  printf '%s ' "$prompt" >&2
+  IFS= read -r answer || answer=""
+  if [ "$answer" != "$word" ]; then
+    fh_die "not confirmed (you must type $word exactly): nothing was changed"
+  fi
+}
+
+# fh_wipe_dir DIR: remove every entry of a Home Assistant config directory except custom_components,
+# then refuse to go on unless .storage and family_hub_backups are really gone. HA runs as root in its
+# container, so its files are root-owned on the host and the removal runs in a throwaway container of
+# the pinned image (already pulled). FH_WIPE_LOCAL=1 runs the same find on the host (tests).
+# family_hub_backups matters most: the integration restores from it when its stores load empty
+# (store.py _maybe_restore_backup), so a surviving backup would bring her old data back.
+fh_wipe_dir() {
+  local dir="${1:?fh_wipe_dir needs a directory}"
+  local name survivors=""
+  if [ ! -d "$dir" ]; then
+    fh_info "Nothing to erase: $dir does not exist yet"
+    return 0
+  fi
+  if [ "${FH_WIPE_LOCAL:-}" = "1" ]; then
+    find "$dir" -mindepth 1 -maxdepth 1 ! -name custom_components -exec rm -rf {} +
+  else
+    : "${HA_VERSION:?set in versions.env (call fh_load_env first)}"
+    docker run --rm -v "$dir:/config" --entrypoint sh "ghcr.io/home-assistant/home-assistant:${HA_VERSION}" \
+      -c 'find /config -mindepth 1 -maxdepth 1 ! -name custom_components -exec rm -rf {} +'
+  fi
+  for name in .storage family_hub_backups; do
+    if [ -e "$dir/$name" ]; then
+      survivors="$survivors $name"
+    fi
+  done
+  if [ -n "$survivors" ]; then
+    fh_die "the wipe left old data behind in $dir (${survivors# }): stopping before the restart so nothing old can come back"
+  fi
+}
+
+# fh_wipe ENV: fh_wipe_dir on that environment's config directory.
+fh_wipe() {
+  fh_wipe_dir "$FH_STATE_DIR/.ha-${1:?fh_wipe needs an environment name}"
+}
+
+# fh_reset_env ENV ASSUME_YES: bring the environment back to a fresh seed with nothing old in it.
+# Confirm, lock, stop the stack, wipe, put the template configuration back, start, seed (the seed
+# ends with verify, which fails on any empty card). The reset stops at the first failure, so a
+# half-finished wipe never reaches the restart.
+fh_reset_env() {
+  local env_name="${1:?fh_reset_env needs an environment name}"
+  local assume_yes="${2:-false}"
+  local label
+  label="$(fh_env_label "$env_name")"
+  fh_confirm "$env_name" "$assume_yes"
+  fh_lock "$env_name"
+  # D-08: the Google calendar backup goes here (plan 02-08). Until then a Google block in the family file is refused, so no Google-connected instance can reach this line.
+  # Plan 02-08 also adds the Google sign-in save here, and the Google restore after the wipe below.
+  fh_info "Stopping $label"
+  fh_compose "$env_name" down
+  fh_info "Erasing $label data (the integration code is kept)"
+  fh_wipe "$env_name"
+  fh_ensure_config "$env_name"
+  fh_ensure_certs
+  fh_info "Starting $label"
+  fh_compose "$env_name" up -d
+  fh_info "Seeding $label"
+  fh_seed "$env_name" seed
+}

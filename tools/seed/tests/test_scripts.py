@@ -26,8 +26,21 @@ SCRIPTS = REPO_ROOT / "scripts"
 HA_VERSION = re.search(r"^HA_VERSION=(\S+)", (REPO_ROOT / "versions.env").read_text(encoding="utf-8"), re.M).group(1)
 IMAGE = "ghcr.io/home-assistant/home-assistant:" + HA_VERSION
 
+# Logs its arguments. For ``docker run -v SRC:/config ...`` it plays the throwaway container: its
+# /config is the host directory SRC, so the wipe's find runs there (FH_STUB_NO_WIPE=1 deletes nothing,
+# which is how a half-finished wipe is simulated).
 STUB_DOCKER = """#!/usr/bin/env bash
 printf 'docker %s\\n' "$*" >> "$FH_STUB_LOG"
+if [ "$1" = "run" ] && [ -z "${FH_STUB_NO_WIPE:-}" ]; then
+  src=""
+  while [ $# -gt 0 ]; do
+    if [ "$1" = "-v" ]; then src="${2%%:*}"; break; fi
+    shift
+  done
+  if [ -n "$src" ]; then
+    find "$src" -mindepth 1 -maxdepth 1 ! -name custom_components -exec rm -rf {} +
+  fi
+fi
 exit "${FH_STUB_DOCKER_RC:-0}"
 """
 
@@ -197,6 +210,7 @@ class ResetTests(ScriptCase):
             "Preview is back to the starting week. She may need to sign in again with her usual details.", result.stdout
         )
         self.assertTrue((config / "configuration.yaml").exists())
+        self.assertEqual(sorted(p.name for p in config.iterdir()), ["configuration.yaml", "custom_components"])
 
     def test_the_wipe_run_uses_the_pinned_image_and_keeps_only_the_integration(self) -> None:
         self.populate("preview")
@@ -217,9 +231,9 @@ class ResetTests(ScriptCase):
         self.assertFalse(any(line.startswith("docker run") for line in self.calls()))
 
     def test_a_wipe_that_leaves_old_data_stops_before_the_restart_and_the_seed(self) -> None:
-        # The stub docker deletes nothing, so .storage and family_hub_backups survive the "wipe".
+        # The stub container deletes nothing, so .storage and family_hub_backups survive the "wipe".
         self.populate("preview")
-        result = self.run_script("reset-preview", "--yes")
+        result = self.run_script("reset-preview", "--yes", FH_STUB_NO_WIPE="1")
         self.assertEqual(result.returncode, 1, result.stdout)
         self.assertIn(".storage", result.stderr)
         self.assertIn("family_hub_backups", result.stderr)
@@ -233,7 +247,7 @@ class ResetTests(ScriptCase):
         config = self.state / ".ha-preview"
         (config / "family_hub_backups").mkdir(parents=True)
         (config / "family_hub_backups" / "chores.json").write_text("old", encoding="utf-8")
-        result = self.run_script("reset-preview", "--yes")
+        result = self.run_script("reset-preview", "--yes", FH_STUB_NO_WIPE="1")
         self.assertEqual(result.returncode, 1)
         self.assertFalse(any(line.startswith("seed") for line in self.calls()))
 

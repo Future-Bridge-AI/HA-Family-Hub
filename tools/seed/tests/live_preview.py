@@ -9,6 +9,7 @@ Run: FH_HASS=$HOME/.cache/fh-hassfest/venv/bin/hass python -B -m unittest discov
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -22,12 +23,28 @@ from .live_ha import REPO_ROOT, LiveHA
 PORT = 18133
 
 
-def export_head(out: Path) -> dict[str, str]:
-    """Export HEAD the way deploy-preview does (fh_export_build) and return the build file's keys."""
+def export_head(out: Path, deployed: str = "") -> dict[str, str]:
+    """Export HEAD the way deploy-preview does (fh_export_build) and return the build file's keys.
+
+    ``deployed`` fixes the deploy time (a stub ``date`` for the build-time format only), so two
+    exports of the same commit can be told apart.
+    """
+    env = dict(os.environ, TZ="Europe/London")
+    if deployed:
+        stub_dir = out.parent / ("bin-" + out.name)
+        stub_dir.mkdir(parents=True, exist_ok=True)
+        stub = stub_dir / "date"
+        stub.write_text(
+            '#!/usr/bin/env bash\nif [ "$1" = "+%e %b %H:%M" ]; then printf \'%s\\n\' "' + deployed + '"; exit 0; fi\n'
+            'exec /bin/date "$@"\n',
+            encoding="utf-8",
+        )
+        stub.chmod(0o755)
+        env["PATH"] = "%s:%s" % (stub_dir, env["PATH"])
     result = subprocess.run(
         ["bash", "-c", '. scripts/lib.sh\nfh_export_build HEAD "$1" Preview', "_", str(out)],
         cwd=REPO_ROOT,
-        env=dict(os.environ, TZ="Europe/London"),
+        env=env,
         capture_output=True,
         text=True,
     )
@@ -143,6 +160,33 @@ class LiveDeployTests(unittest.TestCase):
         self.assertEqual(lines[0], "Preview is updated and ready for you to try.")
         self.assertIn('"%s".' % self.build["FH_STAMP"], result.stdout)
         self.assertTrue(all(len(line) <= 72 for line in lines))
+
+    def test_g_deploying_the_same_commit_again_keeps_one_resource_per_card_path(self) -> None:
+        """PREV-07 idempotency: same version and hash, a newer time, still one resource per card."""
+        first_stamp = self.build["FH_STAMP"]
+        second_build = export_head(Path(self.tmp.name) / "export2", deployed="31 Dec 23:59")
+        self.assertEqual(second_build["FH_SHA"], self.build["FH_SHA"])
+        self.assertNotEqual(second_build["FH_STAMP"], first_stamp)
+        self.assertEqual(second_build["FH_STAMP"].split(" \u00b7 ")[:2], first_stamp.split(" \u00b7 ")[:2])
+
+        # What deploy-preview does on disk: stop, swap the exported copy in, start, seed, verify.
+        self.ha.stop()
+        live = self.ha.config_dir / "custom_components" / "family_hub"
+        shutil.rmtree(live)
+        shutil.copytree(Path(self.tmp.name) / "export2" / "custom_components" / "family_hub", live)
+        self.ha.start()
+        seeded = self.ha.seed("seed", "--integration-dir", self.served_dir)
+        self.assertEqual(seeded.returncode, 0, seeded.stdout + seeded.stderr)
+        again = self.verify_served(second_build["FH_STAMP"])
+        self.assertEqual(again.returncode, 0, again.stdout + again.stderr)
+        self.assertEqual(self.verify_served(first_stamp).returncode, 1)
+
+        async def read(_client, _token, ws):
+            return (await ws.call("lovelace/resources"))["result"]
+
+        rows = self.ha.run_async(self._admin(read))
+        paths = [row["url"].split("?", 1)[0] for row in rows]
+        self.assertEqual(len(paths), len(set(paths)), paths)
 
 
 class LiveResetTests(unittest.TestCase):
