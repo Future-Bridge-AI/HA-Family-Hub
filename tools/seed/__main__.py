@@ -295,6 +295,16 @@ async def _cmd_google_link(ctx: Context) -> int:
     return 0
 
 
+def _configure_backup(parser: argparse.ArgumentParser) -> None:
+    _configure_family_only(parser)
+    parser.add_argument("--backups-dir", default="dev/.ha-backups", help="where the dated backup folders go")
+
+
+async def _cmd_backup_calendars(ctx: Context) -> int:
+    """Placeholder: replaced by the real backup in the next commit."""
+    return 0
+
+
 async def _cmd_refresh(ctx: Context) -> int:
     """Keep the week current without starting over: top up her content, sync the pretend events,
     put the safe notification settings back and verify. Everything here only adds or corrects;
@@ -361,6 +371,11 @@ COMMANDS: dict[str, Command] = {
         "create the Google application credential and reload the entry until it is loaded",
         _cmd_google_link,
         _configure_family_only,
+    ),
+    "backup-calendars": Command(
+        "save every chosen Google calendar to a dated .ics file; stops hard if any backup fails",
+        _cmd_backup_calendars,
+        _configure_backup,
     ),
     "resources-sync": Command(
         "point each card's lovelace resource at the hash of the file being served",
