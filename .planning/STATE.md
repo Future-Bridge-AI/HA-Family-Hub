@@ -5,16 +5,16 @@ milestone_name: Family Preview Loop
 current_phase: 02
 current_phase_name: Dev + Family Preview
 status: executing
-stopped_at: Phase 2 UI-SPEC approved
-last_updated: "2026-11-03T15:40:19.237Z"
+stopped_at: Completed 02-01-PLAN.md
+last_updated: "2026-11-04T00:06:46.389Z"
 last_activity: 2026-11-03
 last_activity_desc: Phase 02 execution started
-state_head: 00186629a4dc5a4aa4e2f6bbbcc7a17aa91ee287
+state_head: c8b512b5726b9285f4ee0d56f688def18f4b5f8a
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 17
-  completed_plans: 7
+  completed_plans: 11
 ---
 
 # Project State
@@ -29,8 +29,8 @@ See: .planning/PROJECT.md (updated 2026-10-27)
 ## Current Position
 
 Phase: 02 (Dev + Family Preview) — EXECUTING
-Plan: 1 of 10
-Status: Executing Phase 02
+Plan: 2 of 10
+Status: Ready to execute
 Last activity: 2026-11-03 — Phase 02 execution started
 
 Progress: [███░░░░░░░] 25%
@@ -64,6 +64,7 @@ Progress: [███░░░░░░░] 25%
 | Phase 01 P04 | 36 min | 3 tasks | 6 files |
 | Phase 01 P07 | 1 min | 2 tasks | 6 files |
 | Phase 01 P05 | 7h 43m | 3 tasks | 2 files |
+| Phase 02 P01 | 25 min | 3 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -86,6 +87,9 @@ Recent decisions affecting current work:
 - [Phase 01]: 01-07: root de/en/es/fr.json and strings.json deleted; translations/ is the only translation location; 9 orphan keys not ported (D-06); fh_ui preserved (D-09)
 - [Phase 01]: FOUND-09 satisfied by hosted Validate run 40422777272 (head bd8de7a): hacs failure, hassfest failure; failures HF-01..04, HF-W01, HACS-01..03, HACS-W01 match the prediction, 0 hosted-only
 - [Phase 01]: No Home Assistant installation exists yet; first fork release v2.0.0 is a fresh install and any Home install must be HA >= 2024.12.0
+- [Phase 02]: Name-constrained openssl root CA (pathlen 0, private ranges + localhost) with leaf signed directly by it, instead of mkcert
+- [Phase 02]: No homeassistant core block in dev configuration.yaml; seed owns location_name and D-31 keys via config/core/update
+- [Phase 02]: Package installs (ical==14.3.0, gcal-sync==9.2.0, oauth2client==4.1.3; playwright==1.64.1, aiohttp==3.14.5, PyYAML==6.0.3) approved by human; each later plan installs at its own step; LiveHA uses --skip-pip until then
 
 ### Pending Todos
 
@@ -116,6 +120,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-02T16:32:58.005Z
-Stopped at: Phase 2 UI-SPEC approved
-Resume file: .planning/phases/02-dev-family-preview/02-UI-SPEC.md
+Last session: 2026-11-04T00:06:46.274Z
+Stopped at: Completed 02-01-PLAN.md
+Resume file: None

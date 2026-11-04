@@ -24,8 +24,8 @@ Requirements for milestone 1. Each maps to one roadmap phase.
 
 ### Dev environment
 
-- [ ] **DEV-01**: Developer can start a Dev Home Assistant with one command (Docker Compose, pinned HA image, port distinct from Home and Preview) with the integration mounted live from the working copy
-- [ ] **DEV-02**: Developer sees Python changes after an HA restart and card JS changes after a browser refresh in Dev, without copying files
+- [x] **DEV-01**: Developer can start a Dev Home Assistant with one command (Docker Compose, pinned HA image, port distinct from Home and Preview) with the integration mounted live from the working copy
+- [x] **DEV-02**: Developer sees Python changes after an HA restart and card JS changes after a browser refresh in Dev, without copying files
 - [ ] **DEV-03**: Dev starts with realistic demo data from the same seed tool as Preview, and can be reset to a known state (including clearing `family_hub_backups/`)
 
 ### Family Preview environment
@@ -132,8 +132,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FOUND-07 | Phase 1 | Complete |
 | FOUND-08 | Phase 1 | Complete |
 | FOUND-09 | Phase 1 | Complete |
-| DEV-01 | Phase 2 | Pending |
-| DEV-02 | Phase 2 | Pending |
+| DEV-01 | Phase 2 | Complete |
+| DEV-02 | Phase 2 | Complete |
 | DEV-03 | Phase 2 | Pending |
 | PREV-01 | Phase 2 | Pending |
 | PREV-02 | Phase 2 | Pending |

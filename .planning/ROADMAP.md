@@ -72,11 +72,11 @@ Plans:
   4. The developer checks a trivial visible change (e.g. a title text) in Dev, which starts with one command on the same pretend data and shows edits live. The developer then runs `deploy-preview <branch>`. After a refresh, she sees the new text and a newer build stamp in Preview and confirms it.
   5. After she has ticked chores and redeemed rewards, one `reset-preview` brings back the original pretend week with no old data resurrected. On a fresh Preview the Family Hub dashboard and cards are in place without manual setup, and Dev resets the same way.
 
-**Plans:** 3/10 plans executed
+**Plans:** 4/10 plans executed
 
 Plans:
 **Wave 1**
-- [ ] 02-01-PLAN.md — Seed tool core: local CA certs, config template, HTTPS bootstrap with loopback/CA/identity guards, resources-sync, LiveHA test harness, package-legitimacy checkpoint (has checkpoint)
+- [x] 02-01-PLAN.md — Seed tool core: local CA certs, config template, HTTPS bootstrap with loopback/CA/identity guards, resources-sync, LiveHA test harness, package-legitimacy checkpoint (has checkpoint)
 - [x] 02-02-PLAN.md — One-command Dev host layer: compose, host env file, lib.sh, dev-up / dev-cards / dev-restart / dev-down, LF line endings
 - [x] 02-03-PLAN.md — Calendar card: build stamp footer and loud delete confirm for real Google events (D-09, D-20)
 - [x] 02-04-PLAN.md — Reword ROADMAP, REQUIREMENTS and PROJECT for the laptop host and the real Google calendars (D-03, D-07, D-28)
@@ -166,7 +166,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4. Phase 3 depends only on Ph
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Clean Foundation | 7/7 | Complete    | 2026-10-27 |
-| 2. Dev + Family Preview | 3/10 | In Progress | - |
+| 2. Dev + Family Preview | 4/10 | In Progress | - |
 | 3. Safety Net | 0/TBD | Not started | - |
 | 4. Family-Led Customisation Loop | 0/TBD | Not started | - |
 
