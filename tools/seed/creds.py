@@ -58,6 +58,17 @@ class CredentialStore:
             self.save()
         return dict(entry)
 
+    def pin(self, first_name: str) -> str:
+        """Return a child's 4-digit kiosk PIN, generated once and reused after every reset."""
+        self.member(first_name)  # makes sure the member's entry exists
+        entry = self._data["members"][first_name]
+        pin = entry.get("pin")
+        if not (isinstance(pin, str) and pin.isdigit() and len(pin) == 4):
+            pin = "%04d" % secrets.randbelow(10000)
+            entry["pin"] = pin
+            self.save()
+        return pin
+
     def save(self) -> None:
         """Write the file (0600, inside a 0700 directory); unchanged content is not rewritten."""
         text = json.dumps(self._data, indent=2, sort_keys=True) + "\n"
