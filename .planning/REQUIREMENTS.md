@@ -31,13 +31,13 @@ Requirements for milestone 1. Each maps to one roadmap phase.
 ### Family Preview environment
 
 - [ ] **PREV-01**: She can reach Family Preview at a stable address on the home network at agreed times, whenever the developer's laptop is on and at home (always-on returns when Preview moves to a dedicated box), running as a separate HA instance that shares nothing with the Home setup (own config, own identity, bridge networking, discovery disabled)
-- [ ] **PREV-02**: She can tell at a glance she is in Preview, not the real app — distinct name, theme and server entry
+- [x] **PREV-02**: She can tell at a glance she is in Preview, not the real app — distinct name, theme and server entry
 - [ ] **PREV-03**: Nothing done in Preview reaches the real world through notifications (no reminders, alerts, Daily Digest, nudges or timer alarms are delivered to real phones or speakers), and Preview never connects to the family's real lists. Its calendar connects read/write only to a chosen list of the family's real Google calendars (D-07), guarded by tagged pretend events, dated .ics backups before deploy and reset, and a loud second confirm before a real event is deleted (D-08 to D-11)
 - [ ] **PREV-04**: When she opens Preview she sees a realistic current week — our family members, calendars, events, meals, chores, rewards and the to-do lists the integration needs — generated relative to today so it never goes stale
 - [ ] **PREV-05**: Developer can put any branch onto Preview with one command (`deploy-preview <branch>`), which restarts Preview and verifies the new cards are actually being served
 - [ ] **PREV-06**: Developer can return Preview to the known seeded state with one command (`reset-preview`), which also clears the integration's own backups so old data cannot come back
 - [ ] **PREV-07**: She can see which build she is looking at (a visible version/build stamp) so "did it update?" is never a guess
-- [ ] **PREV-08**: The Family Hub dashboard and card resources are created and verified automatically on a fresh Preview — no manual dashboard setup
+- [x] **PREV-08**: The Family Hub dashboard and card resources are created and verified automatically on a fresh Preview — no manual dashboard setup
 
 ### Her access and family docs
 
@@ -136,13 +136,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DEV-02 | Phase 2 | Complete |
 | DEV-03 | Phase 2 | Pending |
 | PREV-01 | Phase 2 | Pending |
-| PREV-02 | Phase 2 | Pending |
+| PREV-02 | Phase 2 | Complete |
 | PREV-03 | Phase 2 | Pending |
 | PREV-04 | Phase 2 | Pending |
 | PREV-05 | Phase 2 | Pending |
 | PREV-06 | Phase 2 | Pending |
 | PREV-07 | Phase 2 | Pending |
-| PREV-08 | Phase 2 | Pending |
+| PREV-08 | Phase 2 | Complete |
 | ACCESS-01 | Phase 2 | Pending |
 | ACCESS-02 | Phase 2 | Pending |
 | ACCESS-03 | Phase 2 | Pending |

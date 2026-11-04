@@ -14,10 +14,18 @@ import sys
 from typing import Awaitable, Callable, Optional
 
 from . import bootstrap as bootstrap_mod
+from . import dashboard as dashboard_mod
+from . import content as content_mod
+from . import entries as entries_mod
+from . import family_file as family_file_mod
+from . import family_hub as family_hub_mod
 from . import resources as resources_mod
+from . import users as users_mod
+from . import verify as verify_mod
 from .client import HAClient, SeedError
 from .creds import CredentialStore
 from .envs import ENVIRONMENTS, Env, GuardRefused, base_url, get_env
+from .family_file import FamilyFileError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -85,10 +93,64 @@ async def _cmd_resources_sync(ctx: Context) -> int:
     return 0
 
 
+def _configure_family(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--family", default=None, help="family file (default: family.local.yaml, else the example)")
+    parser.add_argument("--integration-dir", default=None, help="directory holding card/ and panel/")
+
+
+async def _verify(ctx: Context, client: HAClient, token: str, ws, family, creds) -> int:
+    """Run verify against the instance; 1 when anything failed."""
+    integration_dir = ctx.args.integration_dir or DEFAULT_INTEGRATION_DIR[ctx.env.key]
+    failures = await verify_mod.run_verify(client, token, ws, ctx.env, family, creds, integration_dir, say)
+    return 1 if failures else 0
+
+
+async def _cmd_verify(ctx: Context) -> int:
+    family = family_file_mod.load(ctx.args.family, say)
+    async with ctx.client() as client:
+        token, ws = await bootstrap_mod.open_admin(client, ctx.env, ctx.creds())
+        return await _verify(ctx, client, token, ws, family, ctx.creds())
+
+
+async def _cmd_seed(ctx: Context) -> int:
+    """Bootstrap, then turn the onboarded instance into what she sees: accounts, lists, Family Hub,
+    her dashboard and her sidebar. Every step is a top-up, so running it again changes nothing."""
+    family = family_file_mod.load(ctx.args.family, say)
+    async with ctx.client() as client:
+        await bootstrap_mod.bootstrap(client, ctx.env, ctx.creds(), ctx.timeout, say)
+        token, ws = await bootstrap_mod.open_admin(client, ctx.env, ctx.creds())
+        creds = ctx.creds()
+        await family_hub_mod.remove_outbound_entries(client, token, say)
+        user_ids = await users_mod.ensure_users(ws, creds, family, say)
+        await entries_mod.ensure_todo_lists(client, token, ws, say)
+        calendars = await entries_mod.ensure_local_calendars(client, token, ws, family, say)
+        await entries_mod.ensure_family_hub_entry(client, token, ws, family, user_ids, calendars, say)
+        await dashboard_mod.ensure_dashboard(ws, ctx.env, family, calendars, say)
+        today, zone = await family_hub_mod.instance_today(ws)
+        week = content_mod.build_content(family, ctx.env, today)
+        await family_hub_mod.apply_content(ws, family, user_ids, week, creds, ctx.env, zone, say)
+        await family_hub_mod.apply_safe_notifications(ws, say)
+        for member in family.members:
+            if not member.admin:
+                hidden = await dashboard_mod.set_member_sidebar(client, creds, member)
+                say("sidebar: %s sees Family Hub only (%d panels hidden)" % (member.first_name, len(hidden)))
+        return await _verify(ctx, client, token, ws, family, creds)
+
+
 COMMANDS: dict[str, Command] = {
     "wait": Command("wait until Home Assistant answers over verified TLS", _cmd_wait),
     "bootstrap": Command(
         "onboard, promote the http config and name the instance", _cmd_bootstrap
+    ),
+    "seed": Command(
+        "bootstrap, then create her accounts, lists, Family Hub, dashboard and sidebar, then verify",
+        _cmd_seed,
+        _configure_family,
+    ),
+    "verify": Command(
+        "fail if anything could reach a real phone or anything she relies on is missing",
+        _cmd_verify,
+        _configure_family,
     ),
     "resources-sync": Command(
         "point each card's lovelace resource at the hash of the file being served",
@@ -126,6 +188,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         return asyncio.run(COMMANDS[args.command].run(ctx))
     except GuardRefused as err:
         print("refused: %s" % err, file=sys.stderr)
+        return err.exit_code
+    except FamilyFileError as err:
+        print("family file: %s" % err, file=sys.stderr)
         return err.exit_code
     except SeedError as err:
         print("error [%s]: %s" % (err.code, err.message), file=sys.stderr)

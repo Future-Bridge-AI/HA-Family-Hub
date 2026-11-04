@@ -201,7 +201,8 @@ class HAClient:
 
         An answer is a dict, a list of dicts consumed in order (a step that repeats, such as
         Family Hub's member_profile loop), or a callable taking the step JSON (so it can read
-        ``description_placeholders``) and returning a dict.
+        ``description_placeholders``) and returning a dict. A flow that fails half way is aborted
+        on the server, so the next run is not blocked by an "already in progress" flow.
         """
         queues: dict[str, Any] = {
             key: (list(value) if isinstance(value, list) else value)
@@ -213,6 +214,20 @@ class HAClient:
             json={"handler": handler, "show_advanced_options": False},
             token=token,
         )
+        flow_id = step.get("flow_id") if isinstance(step, dict) else None
+        try:
+            return await self._advance_flow(token, handler, queues, status, step)
+        except SeedError:
+            if flow_id:
+                try:
+                    await self.rest("DELETE", "/api/config/config_entries/flow/%s" % flow_id, token=token)
+                except SeedError as err:  # best effort; the original error is the one that matters
+                    _LOGGER.debug("could not abort flow %s: %s", flow_id, err)
+            raise
+
+    async def _advance_flow(
+        self, token: str, handler: str, queues: dict[str, Any], status: int, step: Any
+    ) -> dict:
         while True:
             if status != 200 or not isinstance(step, dict):
                 raise SeedError("flow", "config flow %s failed (HTTP %s): %s" % (handler, status, step))
