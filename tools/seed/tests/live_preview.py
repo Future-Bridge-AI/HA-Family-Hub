@@ -15,6 +15,7 @@ import unittest
 from pathlib import Path
 
 from tools.seed import deploy, resources
+from tools.seed.client import HAClient
 
 from .live_ha import REPO_ROOT, LiveHA
 
@@ -142,6 +143,137 @@ class LiveDeployTests(unittest.TestCase):
         self.assertEqual(lines[0], "Preview is updated and ready for you to try.")
         self.assertIn('"%s".' % self.build["FH_STAMP"], result.stdout)
         self.assertTrue(all(len(line) <= 72 for line in lines))
+
+
+class LiveResetTests(unittest.TestCase):
+    """PREV-06: after a reset none of her earlier data comes back, and her login still works.
+
+    One boot, one sequence in setUpClass (seed, mutate, stop, wipe through lib.sh, re-render the
+    configuration, start, seed); the tests read what was recorded along the way.
+    """
+
+    ha: LiveHA
+    served_dir: str
+    CHILD = "Riley"
+    HER = "Jordan"
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.ha = LiveHA("preview", PORT)
+        cls.ha.__enter__()
+        try:
+            cls.served_dir = str(cls.ha.config_dir / "custom_components" / "family_hub")
+            cls.first = cls.ha.seed("seed", "--integration-dir", cls.served_dir)
+            if cls.first.returncode != 0:
+                raise RuntimeError("first seed failed: %s %s" % (cls.first.stdout, cls.first.stderr))
+            cls.fresh = cls.ha.run_async(cls._admin_call(cls.read_state))
+            cls.child_id = cls.ha.run_async(cls._admin_call(cls.find_user, cls.CHILD))
+            cls.mutated = cls.ha.run_async(cls._admin_call(cls.mutate))
+            cls.config = cls.ha.config_dir
+            cls.before_wipe = {
+                "storage": (cls.config / ".storage").is_dir(),
+                "backups": (cls.config / "family_hub_backups").is_dir(),
+                "after_mutation": cls.ha.run_async(cls._admin_call(cls.read_state)),
+            }
+            cls.ha.stop()
+            cls.wipe = cls.ha.wipe_config()
+            cls.after_wipe = sorted(path.name for path in cls.config.iterdir())
+            cls.ha.rerender_config()
+            cls.ha.start()
+            cls.second = cls.ha.seed("seed", "--integration-dir", cls.served_dir)
+            cls.after = cls.ha.run_async(cls._admin_call(cls.read_state)) if cls.second.returncode == 0 else None
+        except BaseException:
+            cls.ha.__exit__(None, None, None)
+            raise
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.ha.__exit__(None, None, None)
+
+    # -- helpers ---------------------------------------------------------------------------------
+
+    @classmethod
+    async def _admin_call(cls, fn, *args):
+        async with cls.ha.admin_session() as (client, token, ws):
+            return await fn(client, token, ws, *args)
+
+    @staticmethod
+    async def find_user(_client, _token, ws, name: str) -> str:
+        users = (await ws.call("config/auth/list"))["result"]
+        return next(u["id"] for u in users if u["name"] == name and not u["system_generated"])
+
+    @staticmethod
+    async def read_state(_client, _token, ws) -> dict:
+        """What her cards would show: the reward catalog, the balances and every chore's progress."""
+        rewards = (await ws.call("family_hub/rewards/get_state"))["result"]
+        chores = (await ws.call("family_hub/chores/list"))["result"]["chores"]
+        return {
+            "catalog": sorted(r["title"] for r in rewards["catalog"]),
+            "balances": dict(rewards["balances"]),
+            "redemptions": len(rewards.get("redemptions") or []),
+            "chores": sorted((c["title"], c["assigned_to"], c["status"], bool(c.get("completed_at"))) for c in chores),
+        }
+
+    @classmethod
+    async def mutate(cls, _client, _token, ws) -> dict:
+        """Create a canary reward and tick one of the child's chores (the ids are kept for the report)."""
+        await ws.call("family_hub/rewards/add_catalog_item", title="Canary reward", cost_stars=3)
+        chores = (await ws.call("family_hub/chores/list"))["result"]["chores"]
+        mine = [c for c in chores if c["assigned_to"] == cls.child_id and c.get("no_approval_required")]
+        reply = await ws.call("family_hub/chores/complete", chore_id=mine[0]["id"])
+        return {"title": mine[0]["title"], "chore": reply["result"]["chore"]}
+
+    # -- the tests -------------------------------------------------------------------------------
+
+    def test_a_her_earlier_data_existed_before_the_reset(self) -> None:
+        self.assertTrue(self.before_wipe["storage"])
+        self.assertTrue(self.before_wipe["backups"], "the integration's own backups must exist for the test to mean anything")
+        now = self.before_wipe["after_mutation"]
+        self.assertIn("Canary reward", now["catalog"])
+        self.assertNotEqual(now["chores"], self.fresh["chores"], "a ticked chore must differ from the fresh seed")
+        self.assertNotEqual(now["balances"], self.fresh["balances"])
+
+    def test_b_the_wipe_removed_everything_but_the_integration(self) -> None:
+        self.assertEqual(self.wipe.returncode, 0, self.wipe.stderr + self.wipe.stdout)
+        self.assertEqual(self.after_wipe, ["custom_components"])
+        self.assertTrue((self.config / "custom_components" / "family_hub" / "manifest.json").exists())
+
+    def test_c_the_second_seed_succeeded_and_ended_in_verify(self) -> None:
+        self.assertEqual(self.second.returncode, 0, self.second.stdout + self.second.stderr)
+        self.assertIn("onboarded", self.second.stdout)
+        self.assertIn("verify: all", self.second.stdout)
+
+    def test_d_the_canary_reward_and_the_tick_are_gone(self) -> None:
+        self.assertIsNotNone(self.after)
+        self.assertNotIn("Canary reward", self.after["catalog"])
+        self.assertEqual(self.after["redemptions"], 0)
+        statuses = {(title, status, done) for title, _who, status, done in self.after["chores"]}
+        fresh = {(title, status, done) for title, _who, status, done in self.fresh["chores"]}
+        self.assertEqual(statuses, fresh)
+
+    def test_e_catalog_balances_and_chores_equal_a_fresh_seed(self) -> None:
+        self.assertEqual(len(self.after["catalog"]), 5)
+        self.assertEqual(self.after["catalog"], self.fresh["catalog"])
+        for user_id in self.after["balances"]:
+            self.assertEqual(self.after["balances"][user_id], 18, user_id)
+        self.assertEqual(len(self.after["balances"]), len(self.fresh["balances"]))
+        self.assertEqual(
+            sorted((title, status) for title, _who, status, _done in self.after["chores"]),
+            sorted((title, status) for title, _who, status, _done in self.fresh["chores"]),
+        )
+
+    def test_f_her_stored_credentials_still_log_her_in(self) -> None:
+        login = self.ha.credentials()["members"][self.HER]
+
+        async def whoami():
+            async with HAClient(self.ha.base_url, self.ha.ca) as client:
+                token = await client.login(login["username"], login["password"])
+                ws = await client.ws(token)
+                return (await ws.call("auth/current_user"))["result"]
+
+        me = self.ha.run_async(whoami())
+        self.assertEqual(me["name"], self.HER)
+        self.assertFalse(me["is_admin"])
 
 
 if __name__ == "__main__":

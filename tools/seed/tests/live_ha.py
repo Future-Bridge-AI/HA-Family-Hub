@@ -79,14 +79,36 @@ class LiveHA:
             text=True,
         )
         self.config_dir.mkdir(parents=True)
-        template = (REPO_ROOT / "dev" / "config-template" / "configuration.yaml").read_text(encoding="utf-8")
-        rendered = template.replace("/ssl/", "%s/" % self.certs)
-        rendered = re.sub(r"^http:\s*$", "http:\n  server_port: %d" % self.port, rendered, flags=re.M)
-        (self.config_dir / "configuration.yaml").write_text(rendered, encoding="utf-8")
+        self.rerender_config()
         shutil.copytree(
             self.integration_src,
             self.config_dir / "custom_components" / "family_hub",
             ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+        )
+
+    def rerender_config(self) -> None:
+        """Write configuration.yaml from the template (what fh_ensure_config does after a wipe).
+
+        The certificate directory and the port are the harness's own, as in the first start.
+        """
+        template = (REPO_ROOT / "dev" / "config-template" / "configuration.yaml").read_text(encoding="utf-8")
+        rendered = template.replace("/ssl/", "%s/" % self.certs)
+        rendered = re.sub(r"^http:\s*$", "http:\n  server_port: %d" % self.port, rendered, flags=re.M)
+        self.config_dir.mkdir(parents=True, exist_ok=True)
+        (self.config_dir / "configuration.yaml").write_text(rendered, encoding="utf-8")
+
+    def wipe_config(self) -> subprocess.CompletedProcess:
+        """Run scripts/lib.sh's own wipe (FH_WIPE_LOCAL=1: no container) on the config directory.
+
+        Home Assistant must be stopped. Everything except custom_components goes, and the helper
+        itself fails when .storage or family_hub_backups survive.
+        """
+        return subprocess.run(
+            ["bash", "-c", '. scripts/lib.sh\nfh_wipe_dir "$1"', "_", str(self.config_dir)],
+            cwd=REPO_ROOT,
+            env=dict(os.environ, FH_WIPE_LOCAL="1"),
+            capture_output=True,
+            text=True,
         )
 
     def start(self) -> None:
