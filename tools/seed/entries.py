@@ -190,14 +190,16 @@ async def ensure_family_hub_entry(
 def calendar_slots(
     family: Family, calendars: dict[str, str], google_slots: tuple = ()
 ) -> list[events.CalendarSlot]:
-    """The calendars the pretend events go on: one writable slot per member with a Local Calendar.
+    """The calendars the pretend events go on: one writable slot per member with a Local Calendar,
+    plus the Google slots (google.google_slots), each with its own writable flag.
 
     ``calendars`` is what ensure_local_calendars returned (``first_name -> entity id``). Members
-    whose calendar is not local, or whose calendar entity does not exist, get no slot. Plan 02-08
-    adds the Google calendars here, each with its own writable flag.
+    whose calendar is not local, or whose calendar entity does not exist, get no local slot. The
+    event sync writes to, and may delete from, only the writable slots of this list.
     """
-    return [
+    local = [
         events.CalendarSlot(person=member.first_name, entity_id=calendars[member.first_name], writable=True)
         for member in family.members
         if member.local_calendar and member.first_name in calendars
     ]
+    return local + list(google_slots)

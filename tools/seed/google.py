@@ -26,6 +26,7 @@ import time
 from typing import Any, Awaitable, Callable, Optional
 
 from .client import HAClient, HAWebSocket, SeedError
+from .events import CalendarSlot
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -245,23 +246,167 @@ async def link(
         await asyncio.sleep(1)
 
 
+# -- which calendars stay enabled (D-07) ------------------------------------------------------------
+
+
 @dataclasses.dataclass
 class Selection:
-    """What the calendar selection changes: entity ids to keep, disable and enable, and chosen ids with no entity."""
+    """What the calendar selection changes.
 
-    keep: list = dataclasses.field(default_factory=list)
-    disable: list = dataclasses.field(default_factory=list)
-    enable: list = dataclasses.field(default_factory=list)
-    missing: list = dataclasses.field(default_factory=list)
+    ``keep``: entity ids of the chosen calendars. ``disable``: every other Google calendar entity that
+    is still enabled. ``enable``: chosen entities that are currently disabled. ``missing``: chosen
+    calendar ids that no entity exists for (yet).
+    """
 
-
-def select_entities(registry: list, entry_unique_id: str, chosen_ids: list, entry_id: Optional[str] = None) -> Selection:
-    return Selection()
-
-
-def google_slots(family: Any, entity_map: dict) -> list:
-    return []
+    keep: list[str] = dataclasses.field(default_factory=list)
+    disable: list[str] = dataclasses.field(default_factory=list)
+    enable: list[str] = dataclasses.field(default_factory=list)
+    missing: list[str] = dataclasses.field(default_factory=list)
 
 
-def member_calendars(family: Any, entity_map: dict) -> dict:
-    return {}
+# A disabled_by reason the selection may undo. "config_entry" and "device" are decided elsewhere.
+_REENABLE = ("user", "integration")
+
+
+def select_entities(
+    registry: list[dict], entry_unique_id: str, chosen_ids: list[str], entry_id: Optional[str] = None
+) -> Selection:
+    """Decide which Google calendar entities stay enabled.
+
+    The integration names a calendar entity's unique_id ``<entry unique_id>-<calendar id>``. A chosen
+    calendar is matched by that whole string, never by a suffix: Birthdays and Work location are
+    ``<entry unique_id>-<calendar id>-birthdays`` and ``...-work-location``, and a calendar id can end
+    with another one. Every other entity of the google platform is disabled. Entities of any other
+    platform are left alone, whatever their unique_id. ``entry_id``, when given, limits the selection
+    to that config entry's entities.
+    """
+    wanted = {"%s-%s" % (entry_unique_id, calendar_id): calendar_id for calendar_id in chosen_ids}
+    found: set[str] = set()
+    result = Selection()
+    for item in registry:
+        if item.get("platform") != DOMAIN:
+            continue
+        if entry_id is not None and item.get("config_entry_id") != entry_id:
+            continue
+        entity_id = item["entity_id"]
+        disabled_by = item.get("disabled_by")
+        unique_id = item.get("unique_id")
+        if unique_id in wanted:
+            found.add(wanted[unique_id])
+            result.keep.append(entity_id)
+            if disabled_by in _REENABLE:
+                result.enable.append(entity_id)
+        elif disabled_by is None:
+            result.disable.append(entity_id)
+    result.missing = [calendar_id for calendar_id in chosen_ids if calendar_id not in found]
+    return result
+
+
+def chosen_calendar_ids(google_block: dict) -> list[str]:
+    return [calendar["calendar_id"] for calendar in google_block["calendars"]]
+
+
+def entity_map(registry: list[dict], entry_unique_id: str, google_block: dict) -> dict[str, str]:
+    """``calendar key -> entity id`` for the chosen calendars that have an entity (exact unique_id match)."""
+    by_unique_id = {
+        item.get("unique_id"): item["entity_id"] for item in registry if item.get("platform") == DOMAIN
+    }
+    mapped: dict[str, str] = {}
+    for calendar in google_block["calendars"]:
+        entity_id = by_unique_id.get("%s-%s" % (entry_unique_id, calendar["calendar_id"]))
+        if entity_id is not None:
+            mapped[calendar["key"]] = entity_id
+    return mapped
+
+
+async def _registry(ws: HAWebSocket) -> list[dict]:
+    return (await ws.call("config/entity_registry/list"))["result"]
+
+
+async def _wait_for_states(ws: HAWebSocket, entity_ids: list[str], deadline: float) -> None:
+    """Wait until every entity reports a state other than unavailable (the calendar API answered)."""
+    pending = list(entity_ids)
+    while True:
+        states = {s["entity_id"]: s["state"] for s in (await ws.call("get_states"))["result"]}
+        pending = [e for e in entity_ids if states.get(e) in (None, "unavailable", "unknown")]
+        if not pending:
+            return
+        if time.monotonic() >= deadline:
+            raise SeedError(
+                "google_calendar",
+                "the chosen calendar entities %s did not come up (Google Calendar not answering?); "
+                "look at the Home Assistant log" % ", ".join(pending),
+            )
+        await asyncio.sleep(2)
+
+
+async def apply_selection(
+    ws: HAWebSocket,
+    entry: dict,
+    google_block: dict,
+    say: Say = print,
+    timeout: float = 150.0,
+) -> dict[str, str]:
+    """Keep only the chosen calendars enabled and return ``calendar key -> entity id``.
+
+    Home Assistant creates an entity for every calendar of the account (and Birthdays and Work
+    location), so on every run the others are disabled through the entity registry and a chosen one
+    that was disabled is enabled again (it takes a moment: Home Assistant reloads the entry). A
+    chosen calendar id with no entity after the wait is an error naming the id.
+    """
+    deadline = time.monotonic() + timeout
+    chosen = chosen_calendar_ids(google_block)
+    while True:
+        registry = await _registry(ws)
+        picked = select_entities(registry, entry["unique_id"], chosen, entry_id=entry["entry_id"])
+        if not picked.missing:
+            break
+        if time.monotonic() >= deadline:
+            raise SeedError(
+                "google_calendar",
+                "no calendar entity exists for the chosen calendar id(s): %s. Check calendar_id in the family file "
+                "(Google Calendar settings > Integrate calendar > Calendar ID) and that this Google account can see it"
+                % ", ".join(picked.missing),
+            )
+        await asyncio.sleep(2)
+    for entity_id in picked.disable:
+        await ws.call("config/entity_registry/update", entity_id=entity_id, disabled_by="user")
+    for entity_id in picked.enable:
+        await ws.call("config/entity_registry/update", entity_id=entity_id, disabled_by=None)
+    say(
+        "google: %d calendars kept, %d disabled, %d enabled again"
+        % (len(picked.keep), len(picked.disable), len(picked.enable))
+    )
+    await _wait_for_states(ws, picked.keep, deadline)
+    return entity_map(await _registry(ws), entry["unique_id"], google_block)
+
+
+def google_slots(family: Any, entity_map: dict[str, str]) -> list[CalendarSlot]:
+    """One slot per chosen calendar that has an entity; only writable + expect_events ones are writable.
+
+    A calendar the family file does not mark ``writable: true`` and ``expect_events: true`` comes
+    back with ``writable=False``, which the event sync treats as read-only: it gets no event and is
+    not in the delete allow-list (D-11, D-25).
+    """
+    if not family.google:
+        return []
+    return [
+        CalendarSlot(
+            person=calendar["person"],
+            entity_id=entity_map[calendar["key"]],
+            writable=bool(calendar["writable"] and calendar["expect_events"]),
+        )
+        for calendar in family.google["calendars"]
+        if calendar["key"] in entity_map
+    ]
+
+
+def member_calendars(family: Any, entity_map: dict[str, str]) -> dict[str, str]:
+    """``first name -> Google calendar entity`` for members whose calendar is ``google:<key>``."""
+    mapped: dict[str, str] = {}
+    for member in family.members:
+        if member.calendar.startswith("google:"):
+            key = member.calendar[len("google:"):]
+            if key in entity_map:
+                mapped[member.first_name] = entity_map[key]
+    return mapped

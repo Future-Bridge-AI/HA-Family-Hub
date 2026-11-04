@@ -25,6 +25,11 @@ _NAME_RE = re.compile(r"^[A-Za-z][A-Za-z' -]{0,30}$")
 _COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 _ROLES = ("parent", "child")
 _AGE_MIN, _AGE_MAX = 3, 17
+_GOOGLE_KEYS = ("client_id", "client_secret", "calendars")
+_GOOGLE_CALENDAR_KEYS = ("key", "calendar_id", "person", "writable", "expect_events", "backup", "ical_secret_url")
+_CALENDAR_KEY_RE = re.compile(r"^[a-z0-9-]+$")
+_BACKUP_KINDS = ("ical", "ha-snapshot")
+_ICAL_URL_PREFIX = "https://calendar.google.com/calendar/ical/"
 
 
 class FamilyFileError(Exception):
@@ -92,20 +97,96 @@ def _reject_unknown(mapping: dict, allowed: tuple[str, ...], path: str) -> None:
             raise FamilyFileError("%s: unknown key %r (allowed: %s)" % (path or "file", key, ", ".join(allowed)))
 
 
+def _parse_google_calendar(raw: Any, index: int) -> dict:
+    """One entry of google.calendars, normalised: flags default to false and backup to "ical".
+
+    Error messages never contain ``ical_secret_url``: it is a secret address (anyone holding it can
+    read the calendar), and a message ends up in a terminal, a log or a chat.
+    """
+    path = "google.calendars[%d]" % index
+    if not isinstance(raw, dict):
+        raise FamilyFileError("%s: must be a mapping" % path)
+    _reject_unknown(raw, _GOOGLE_CALENDAR_KEYS, path)
+
+    key = raw.get("key")
+    if not isinstance(key, str) or not _CALENDAR_KEY_RE.match(key):
+        raise FamilyFileError("%s.key: %r must use only lower-case letters, digits and hyphens" % (path, key))
+    calendar_id = raw.get("calendar_id")
+    if not isinstance(calendar_id, str) or not calendar_id.strip():
+        raise FamilyFileError("%s.calendar_id: the Google Calendar ID is needed (Settings > Integrate calendar)" % path)
+    person = raw.get("person")
+    if not isinstance(person, str) or not person.strip():
+        raise FamilyFileError("%s.person: the first name of the member this calendar belongs to is needed" % path)
+    flags = {}
+    for name in ("writable", "expect_events"):
+        value = raw.get(name, False)
+        if not isinstance(value, bool):
+            raise FamilyFileError("%s.%s: %r must be true or false" % (path, name, value))
+        flags[name] = value
+    if flags["expect_events"] and not flags["writable"]:
+        raise FamilyFileError(
+            "%s.expect_events: a calendar that is not writable cannot receive pretend events (set writable: true too)" % path
+        )
+    backup = raw.get("backup", "ical")
+    if backup not in _BACKUP_KINDS:
+        raise FamilyFileError("%s.backup: %r must be one of %s" % (path, backup, ", ".join(_BACKUP_KINDS)))
+
+    calendar = {
+        "key": key,
+        "calendar_id": calendar_id.strip(),
+        "person": person,
+        "writable": flags["writable"],
+        "expect_events": flags["expect_events"],
+        "backup": backup,
+    }
+    url = raw.get("ical_secret_url")
+    if url is None:
+        if backup == "ical":
+            raise FamilyFileError(
+                "%s.ical_secret_url: needed for backup: ical (Settings > Integrate calendar > Secret address in iCal "
+                "format), or use backup: ha-snapshot for a calendar you do not own" % path
+            )
+    else:
+        if not isinstance(url, str) or not url.startswith(_ICAL_URL_PREFIX):
+            raise FamilyFileError("%s.ical_secret_url: must start with %s" % (path, _ICAL_URL_PREFIX))
+        if not url.endswith(".ics"):
+            raise FamilyFileError("%s.ical_secret_url: must end with .ics" % path)
+        calendar["ical_secret_url"] = url
+    return calendar
+
+
 def _parse_google(raw: Any) -> Optional[dict]:
-    """The google block: None when absent, else a normalised copy (calendars always a list)."""
+    """The google block: None when absent, else a normalised copy (calendars always a list).
+
+    The person of each calendar is checked against the members once they are parsed.
+    """
     if raw is None:
         return None
     if not isinstance(raw, dict):
         raise FamilyFileError("google: must be a mapping or null")
+    _reject_unknown(raw, _GOOGLE_KEYS, "google")
     for name in ("client_id", "client_secret"):
         value = raw.get(name)
         if not isinstance(value, str) or not value.strip():
             raise FamilyFileError("google.%s: a non-empty text is needed" % name)
-    calendars = raw.get("calendars", [])
-    if not isinstance(calendars, list):
+    raw_calendars = raw.get("calendars", [])
+    if not isinstance(raw_calendars, list):
         raise FamilyFileError("google.calendars: must be a list")
-    return {"client_id": raw["client_id"].strip(), "client_secret": raw["client_secret"].strip(), "calendars": list(calendars)}
+    calendars = [_parse_google_calendar(item, index) for index, item in enumerate(raw_calendars)]
+    seen_keys: dict[str, int] = {}
+    seen_ids: dict[str, int] = {}
+    for index, calendar in enumerate(calendars):
+        if calendar["key"] in seen_keys:
+            raise FamilyFileError(
+                "google.calendars[%d].key: %r repeats google.calendars[%d]" % (index, calendar["key"], seen_keys[calendar["key"]])
+            )
+        seen_keys[calendar["key"]] = index
+        if calendar["calendar_id"] in seen_ids:
+            raise FamilyFileError(
+                "google.calendars[%d].calendar_id: repeats google.calendars[%d]" % (index, seen_ids[calendar["calendar_id"]])
+            )
+        seen_ids[calendar["calendar_id"]] = index
+    return {"client_id": raw["client_id"].strip(), "client_secret": raw["client_secret"].strip(), "calendars": calendars}
 
 
 def _parse_member(raw: Any, index: int, google_keys: Optional[set[str]]) -> Member:
@@ -179,6 +260,14 @@ def parse(data: Any, source: str = "") -> Family:
     if not isinstance(raw_members, list) or not raw_members:
         raise FamilyFileError("members: needs a non-empty list")
     members = tuple(_parse_member(raw, index, google_keys) for index, raw in enumerate(raw_members))
+    if google:
+        names = {member.first_name for member in members}
+        for index, calendar in enumerate(google["calendars"]):
+            if calendar["person"] not in names:
+                raise FamilyFileError(
+                    "google.calendars[%d].person: %r is not a member (members: %s)"
+                    % (index, calendar["person"], ", ".join(sorted(names)))
+                )
 
     seen_names: dict[str, int] = {}
     seen_users: dict[str, int] = {}

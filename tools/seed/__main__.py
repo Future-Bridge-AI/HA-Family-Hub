@@ -117,6 +117,22 @@ async def _cmd_verify(ctx: Context) -> int:
         return await _verify(ctx, client, token, ws, family, ctx.creds())
 
 
+async def _google_setup(
+    ctx: Context, client: HAClient, token: str, ws: HAWebSocket, family, reload: bool
+) -> tuple[dict[str, str], list[events.CalendarSlot]]:
+    """Make the Google connection ready: credential, entry loaded, only the chosen calendars enabled.
+
+    Returns ``(first name -> Google calendar entity, Google event slots)``; both are empty when the
+    family file has no google block. An entry that cannot load stops the run here with the
+    one-time sign-in instruction. ``reload`` is False for a refresh, which only checks the entry.
+    """
+    if not family.google:
+        return {}, []
+    entry = await google_mod.link(client, token, ws, family.google, ctx.env, say, reload=reload)
+    keys = await google_mod.apply_selection(ws, entry, family.google, say)
+    return google_mod.member_calendars(family, keys), google_mod.google_slots(family, keys)
+
+
 async def _cmd_seed(ctx: Context) -> int:
     """Bootstrap, then turn the onboarded instance into what she sees: accounts, lists, Family Hub,
     her dashboard and her sidebar. Every step is a top-up, so running it again changes nothing."""
@@ -126,19 +142,20 @@ async def _cmd_seed(ctx: Context) -> int:
         token, ws = await bootstrap_mod.open_admin(client, ctx.env, ctx.creds())
         creds = ctx.creds()
         await family_hub_mod.remove_outbound_entries(client, token, say)
-        if family.google:
-            # Before Family Hub: a member's calendar may be a Google entity, and an entry that cannot
-            # load stops the seed here with the one-time sign-in instruction.
-            await google_mod.link(client, token, ws, family.google, ctx.env, say)
+        # The accounts come first, so on the very first run (no Google sign-in yet) the developer's own
+        # account already exists to sign in with. Google comes before Family Hub: a member's calendar
+        # may be a Google entity.
         user_ids = await users_mod.ensure_users(ws, creds, family, say)
         await entries_mod.ensure_todo_lists(client, token, ws, say)
+        google_members, google_slots = await _google_setup(ctx, client, token, ws, family, reload=True)
         calendars = await entries_mod.ensure_local_calendars(client, token, ws, family, say)
+        calendars.update(google_members)
         await entries_mod.ensure_family_hub_entry(client, token, ws, family, user_ids, calendars, say)
         await dashboard_mod.ensure_dashboard(ws, ctx.env, family, calendars, say)
         today, zone = await family_hub_mod.instance_today(ws)
         week = content_mod.build_content(family, ctx.env, today)
         await family_hub_mod.apply_content(ws, family, user_ids, week, creds, ctx.env, zone, say)
-        slots = entries_mod.calendar_slots(family, calendars)
+        slots = entries_mod.calendar_slots(family, calendars, google_slots)
         await events.sync(client, token, slots, ctx.env, today, apply=True, say=say)
         await family_hub_mod.apply_safe_notifications(ws, say)
         for member in family.members:
@@ -288,12 +305,13 @@ async def _cmd_refresh(ctx: Context) -> int:
         token, ws = await _open_running_admin(ctx, client)
         creds = ctx.creds()
         await family_hub_mod.remove_outbound_entries(client, token, say)
+        _google_members, google_slots = await _google_setup(ctx, client, token, ws, family, reload=False)
         user_ids = await users_mod.ensure_users(ws, creds, family, say)
         calendars = await entries_mod.ensure_local_calendars(client, token, ws, family, say)
         today, zone = await family_hub_mod.instance_today(ws)
         week = content_mod.build_content(family, ctx.env, today)
         await family_hub_mod.apply_content(ws, family, user_ids, week, creds, ctx.env, zone, say)
-        slots = entries_mod.calendar_slots(family, calendars)
+        slots = entries_mod.calendar_slots(family, calendars, google_slots)
         await events.sync(client, token, slots, ctx.env, today, apply=True, say=say)
         await family_hub_mod.apply_safe_notifications(ws, say)
         return await _verify(ctx, client, token, ws, family, creds)

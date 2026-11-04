@@ -11,7 +11,7 @@
 #     are #7ec9d9, #9ed97e, #b07ed9, #d97e9e, #d9a67e and #d9bf7e; any other colour is applied
 #     to the member's profile after setup)
 #   - calendar is "local" (a Local Calendar made for the member), or "google:<key>" once the
-#     google block exists (described in dev/GOOGLE.md, added by plan 02-08)
+#     google block exists (described in dev/GOOGLE.md)
 schema_version: 1
 members:
   - first_name: Sam

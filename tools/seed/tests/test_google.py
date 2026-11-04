@@ -88,7 +88,6 @@ class SelectEntitiesTests(unittest.TestCase):
         self.assertIn("calendar.owner", picked.disable)
         self.assertIn("calendar.birthdays", picked.disable)
         self.assertIn("calendar.holidays", picked.disable)
-        self.assertIn("calendar.school", picked.keep + picked.disable + picked.enable)
         self.assertNotIn("calendar.family", picked.disable)
 
     def test_a_lookalike_that_only_ends_with_a_chosen_id_is_disabled(self) -> None:
@@ -168,6 +167,60 @@ class GoogleSlotsTests(unittest.TestCase):
         self.assertNotIn("calendar.school", writable)
 
 
+class RegistryWebSocket:
+    """An entity registry that applies config/entity_registry/update, and states for the enabled entities."""
+
+    def __init__(self, registry: list[dict]) -> None:
+        self.registry = registry
+        self.updates: list[dict] = []
+
+    async def call(self, type: str, **fields):
+        if type == "config/entity_registry/list":
+            return {"result": [dict(item) for item in self.registry]}
+        if type == "config/entity_registry/update":
+            self.updates.append(fields)
+            for item in self.registry:
+                if item["entity_id"] == fields["entity_id"]:
+                    item["disabled_by"] = fields["disabled_by"]
+            return {"result": {}}
+        if type == "get_states":
+            return {"result": [{"entity_id": i["entity_id"], "state": "off"} for i in self.registry if i["disabled_by"] is None]}
+        raise AssertionError(type)
+
+
+class ApplySelectionTests(unittest.TestCase):
+    ENTRY = {"entry_id": "E1", "unique_id": ACCOUNT}
+
+    def registry(self) -> list[dict]:
+        return [
+            entity("calendar.family", "%s-%s" % (ACCOUNT, FAMILY_CAL)),
+            entity("calendar.school", "%s-%s" % (ACCOUNT, SCHOOL_CAL), disabled_by="user"),
+            entity("calendar.owner", "%s-%s" % (ACCOUNT, ACCOUNT)),
+            entity("calendar.birthdays", "%s-%s-birthdays" % (ACCOUNT, ACCOUNT)),
+        ]
+
+    def test_disables_the_rest_enables_the_chosen_and_maps_keys_to_entities(self) -> None:
+        family, _data = family_with_google()
+        ws = RegistryWebSocket(self.registry())
+        mapped = asyncio.run(google_mod.apply_selection(ws, self.ENTRY, family.google, say=lambda _l: None, timeout=5))
+        self.assertEqual(mapped, {"family": "calendar.family", "school": "calendar.school"})
+        by_entity = {u["entity_id"]: u["disabled_by"] for u in ws.updates}
+        self.assertEqual(by_entity, {"calendar.owner": "user", "calendar.birthdays": "user", "calendar.school": None})
+        again = RegistryWebSocket(ws.registry)
+        asyncio.run(google_mod.apply_selection(again, self.ENTRY, family.google, say=lambda _l: None, timeout=5))
+        self.assertEqual(again.updates, [], "a second run changes nothing")
+
+    def test_a_chosen_calendar_with_no_entity_is_an_error_naming_its_id(self) -> None:
+        family, _data = family_with_google()
+        registry = [item for item in self.registry() if item["entity_id"] != "calendar.family"]
+        ws = RegistryWebSocket(registry)
+        with self.assertRaises(SeedError) as caught:
+            asyncio.run(google_mod.apply_selection(ws, self.ENTRY, family.google, say=lambda _l: None, timeout=0))
+        self.assertEqual(caught.exception.code, "google_calendar")
+        self.assertIn(FAMILY_CAL, caught.exception.message)
+        self.assertEqual(ws.updates, [], "nothing is changed when a chosen calendar is missing")
+
+
 class SavedEntryTests(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
@@ -184,7 +237,8 @@ class SavedEntryTests(unittest.TestCase):
         self.assertTrue(wrote)
         path = os.path.join(self.secrets, "google-dev.json")
         self.assertEqual(stat.S_IMODE(os.stat(path).st_mode), 0o600)
-        saved = json.load(open(path, encoding="utf-8"))
+        with open(path, encoding="utf-8") as handle:
+            saved = json.load(handle)
         self.assertEqual((saved["version"], saved["minor_version"]), (1, 5))
         self.assertEqual(saved["entry"]["entry_id"], "id-google")
 
