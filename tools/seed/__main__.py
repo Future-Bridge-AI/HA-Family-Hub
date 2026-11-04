@@ -11,18 +11,21 @@ import asyncio
 import dataclasses
 import logging
 import sys
+import time
 from typing import Awaitable, Callable, Optional
 
 from . import bootstrap as bootstrap_mod
 from . import dashboard as dashboard_mod
 from . import content as content_mod
+from . import deploy as deploy_mod
 from . import entries as entries_mod
+from . import events
 from . import family_file as family_file_mod
 from . import family_hub as family_hub_mod
 from . import resources as resources_mod
 from . import users as users_mod
 from . import verify as verify_mod
-from .client import HAClient, SeedError
+from .client import HAClient, HAWebSocket, SeedError
 from .creds import CredentialStore
 from .envs import ENVIRONMENTS, Env, GuardRefused, base_url, get_env
 from .family_file import FamilyFileError
@@ -129,11 +132,86 @@ async def _cmd_seed(ctx: Context) -> int:
         today, zone = await family_hub_mod.instance_today(ws)
         week = content_mod.build_content(family, ctx.env, today)
         await family_hub_mod.apply_content(ws, family, user_ids, week, creds, ctx.env, zone, say)
+        slots = entries_mod.calendar_slots(family, calendars)
+        await events.sync(client, token, slots, ctx.env, today, apply=True, say=say)
         await family_hub_mod.apply_safe_notifications(ws, say)
         for member in family.members:
             if not member.admin:
                 hidden = await dashboard_mod.set_member_sidebar(client, creds, member)
                 say("sidebar: %s sees Family Hub only (%d panels hidden)" % (member.first_name, len(hidden)))
+        return await _verify(ctx, client, token, ws, family, creds)
+
+
+def _configure_verify_served(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--expect", required=True, help="the build stamp deploy-preview wrote, e.g. 'Preview · 2.0.0+a1b2c3d · 4 Nov 14:05'")
+    parser.add_argument("--integration-dir", default=None, help="directory holding card/ and panel/")
+
+
+async def _cmd_verify_served(ctx: Context) -> int:
+    """Prove the instance serves the stamped card and one up-to-date resource per card."""
+    integration_dir = ctx.args.integration_dir or DEFAULT_INTEGRATION_DIR[ctx.env.key]
+    async with ctx.client() as client:
+        token, _ws = await bootstrap_mod.open_admin(client, ctx.env, ctx.creds())
+        await deploy_mod.verify_served(client, token, integration_dir, ctx.args.expect, say)
+    return 0
+
+
+def _configure_note(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--stamp", required=True, help="the build stamp the note tells her to look for")
+    parser.add_argument("--what", default=None, help="one plain sentence: what changed")
+    parser.add_argument("--view", default=None, help="the tab to open, e.g. Chores")
+    parser.add_argument("--tap", default=None, help="what to tap there, e.g. the + button")
+
+
+async def _cmd_note(ctx: Context) -> int:
+    """Print the hand-off note (no connection to Home Assistant is made)."""
+    for line in deploy_mod.handoff_note(ctx.args.stamp, ctx.args.what, ctx.args.view, ctx.args.tap):
+        say(line)
+    return 0
+
+
+# Errors that only mean "Home Assistant is still starting": retried for a while by refresh.
+_STARTING_UP = ("auth", "connect", "ws_error")
+_STARTUP_PATIENCE = 120.0
+
+
+async def _open_running_admin(ctx: Context, client: HAClient) -> tuple[str, HAWebSocket]:
+    """Log in as the tool's admin (identity guard first) and wait until Home Assistant is RUNNING.
+
+    A refresh runs at logon, possibly right after Docker restarted Preview, so a login or
+    connection that fails while HA is still starting is retried for a couple of minutes. A wrong
+    name (identity) or an unusable CA is never retried.
+    """
+    deadline = time.monotonic() + min(ctx.timeout, _STARTUP_PATIENCE)
+    while True:
+        try:
+            token, ws = await bootstrap_mod.open_admin(client, ctx.env, ctx.creds())
+            await bootstrap_mod.wait_running(ws, ctx.timeout, say)
+            return token, ws
+        except SeedError as err:
+            if err.code not in _STARTING_UP or time.monotonic() >= deadline:
+                raise
+            await asyncio.sleep(3)
+
+
+async def _cmd_refresh(ctx: Context) -> int:
+    """Keep the week current without starting over: top up her content, sync the pretend events,
+    put the safe notification settings back and verify. Everything here only adds or corrects;
+    the Family Hub data she and the family created is left exactly as it is."""
+    family = family_file_mod.load(ctx.args.family, say)
+    async with ctx.client() as client:
+        await bootstrap_mod.wait_http(client, ctx.timeout, say)
+        token, ws = await _open_running_admin(ctx, client)
+        creds = ctx.creds()
+        await family_hub_mod.remove_outbound_entries(client, token, say)
+        user_ids = await users_mod.ensure_users(ws, creds, family, say)
+        calendars = await entries_mod.ensure_local_calendars(client, token, ws, family, say)
+        today, zone = await family_hub_mod.instance_today(ws)
+        week = content_mod.build_content(family, ctx.env, today)
+        await family_hub_mod.apply_content(ws, family, user_ids, week, creds, ctx.env, zone, say)
+        slots = entries_mod.calendar_slots(family, calendars)
+        await events.sync(client, token, slots, ctx.env, today, apply=True, say=say)
+        await family_hub_mod.apply_safe_notifications(ws, say)
         return await _verify(ctx, client, token, ws, family, creds)
 
 
@@ -151,6 +229,21 @@ COMMANDS: dict[str, Command] = {
         "fail if anything could reach a real phone or anything she relies on is missing",
         _cmd_verify,
         _configure_family,
+    ),
+    "refresh": Command(
+        "top up her week, sync the pretend events, re-apply safe notifications and verify (never wipes)",
+        _cmd_refresh,
+        _configure_family,
+    ),
+    "verify-served": Command(
+        "fail unless the instance serves the stamped calendar card and one fresh resource per card",
+        _cmd_verify_served,
+        _configure_verify_served,
+    ),
+    "note": Command(
+        "print the plain hand-off note for her after a deploy",
+        _cmd_note,
+        _configure_note,
     ),
     "resources-sync": Command(
         "point each card's lovelace resource at the hash of the file being served",

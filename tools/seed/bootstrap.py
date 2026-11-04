@@ -118,6 +118,17 @@ async def onboard_if_needed(
     # A brand new tool (no stored password yet) has never onboarded anything, so a 404 right
     # after start is more likely "views not registered yet" than "already onboarded".
     steps = await _onboarding_status(client, settle=0.0 if creds.exists() else 30.0)
+    if steps is None and creds.exists():
+        # Right after a reset the stored credentials outlive the wiped instance, and its 404 looks
+        # like "already onboarded" until the onboarding views are registered. Only a login that
+        # works proves it is onboarded; if it does not, keep asking for the onboarding steps.
+        stored = creds.admin()
+        try:
+            await client.login(stored["username"], stored["password"])
+        except SeedError as err:
+            if err.code != "auth":
+                raise
+            steps = await _onboarding_status(client, settle=30.0)
     if steps is None or all(steps.values()):
         return OnboardResult(onboarded=False)
 
