@@ -1,0 +1,37 @@
+# An invented family used by Dev and Preview when no real family file exists. Nothing here is real.
+#
+# To use your own names, copy this file to tools/seed/family.local.yaml and edit it. The copy is
+# ignored by git (tools/seed/*.local.*), so real names, ages and calendar ids never reach the repo.
+#
+# Rules (the seed tool checks them and says which key is wrong):
+#   - exactly one member has admin: true and that member is a parent (the developer's own account)
+#   - at least one other parent has admin: false (the family product owner's account)
+#   - children carry an age from 3 to 17; parents carry none
+#   - color is a hex colour such as "#7ec9d9" (the six board colours Family Hub offers in its setup
+#     are #7ec9d9, #9ed97e, #b07ed9, #d97e9e, #d9a67e and #d9bf7e; any other colour is applied
+#     to the member's profile after setup)
+#   - calendar is "local" (a Local Calendar made for the member), or "google:<key>" once the
+#     google block exists (described in dev/GOOGLE.md)
+schema_version: 1
+members:
+  - first_name: Sam
+    role: parent
+    admin: true
+    color: "#7ec9d9"
+    calendar: local
+  - first_name: Jordan
+    role: parent
+    admin: false
+    color: "#d9bf7e"
+    calendar: local
+  - first_name: Riley
+    role: child
+    age: 9
+    color: "#9ed97e"
+    calendar: local
+  - first_name: Casey
+    role: child
+    age: 6
+    color: "#d97e9e"
+    calendar: local
+google: null

@@ -1,0 +1,9 @@
+# Dev overlay: loopback-only port, own config volume, the working copy's integration mounted read-only.
+# Project name familyhub-dev, so Dev never shares a container or volume with Preview.
+services:
+  ha:
+    ports:
+      - "127.0.0.1:8130:8123"
+    volumes:
+      - ./.ha-dev:/config
+      - ../custom_components/family_hub:/config/custom_components/family_hub:ro

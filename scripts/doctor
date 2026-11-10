@@ -1,0 +1,463 @@
+#!/usr/bin/env bash
+# Check the host that runs Dev and Preview and say exactly what is wrong.
+#
+# Usage: scripts/doctor
+#
+# Prints one line per check, "<STATUS> <id> <message>", where STATUS is PASS, WARN, FAIL, SKIP or
+# INFO, then "doctor: P pass, W warn, F fail, S skip". Exits 1 when any check is FAIL.
+#
+# Written for the developer's Windows 11 laptop (WSL2 + Docker Engine, D-23) but host-agnostic
+# (D-04): on a plain Linux or macOS host the Windows-only checks print SKIP, never FAIL. WSL is
+# recognised by "microsoft" and "WSL2" in /proc/version.
+#
+# Settings come from dev/host.env (TZ, PREVIEW_HOST_IP, ...). A missing file is a FAIL of
+# env.hostfile, not an abort. Windows tools (wsl.exe, cmd.exe, powershell.exe, netsh.exe,
+# schtasks.exe) are called through WSL interop; their output is stripped of CR and NUL first.
+#
+# Test hooks (never needed in real use):
+#   FH_DOCTOR_PROC_VERSION  file read instead of /proc/version
+#   FH_DOCTOR_WSL_CONF      file read instead of /etc/wsl.conf
+#   FH_DOCTOR_ROOT          path used by repo.location instead of the real repository root
+#   FH_STATE_DIR, FH_HOST_ENV (as in scripts/lib.sh)
+set -uo pipefail
+
+case "${1:-}" in
+  -h|--help) sed -n '2,19p' "${BASH_SOURCE[0]}"; exit 0 ;;
+  "") ;;
+  *) echo "doctor: unknown argument: $1" >&2; exit 2 ;;
+esac
+
+# shellcheck disable=SC1091
+. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
+HOSTFILE_FOUND=0
+if [ -f "$FH_HOST_ENV" ]; then
+  HOSTFILE_FOUND=1
+  set -a
+  # shellcheck disable=SC1090
+  . "$FH_HOST_ENV"
+  set +a
+fi
+
+N_PASS=0
+N_WARN=0
+N_FAIL=0
+N_SKIP=0
+
+# emit STATUS ID MESSAGE: one output line per check, counted for the summary.
+emit() {
+  local status="$1" id="$2" msg="$3"
+  msg="${msg//$'\n'/ }"
+  case "$status" in
+    PASS) N_PASS=$((N_PASS + 1)) ;;
+    WARN) N_WARN=$((N_WARN + 1)) ;;
+    FAIL) N_FAIL=$((N_FAIL + 1)) ;;
+    SKIP) N_SKIP=$((N_SKIP + 1)) ;;
+  esac
+  printf '%s %s %s\n' "$status" "$id" "$msg"
+}
+
+# joined A B C -> "A; B; C"
+joined() {
+  local s="" x
+  for x in "$@"; do
+    s="${s:+$s; }$x"
+  done
+  printf '%s' "$s"
+}
+
+# with_timeout SECONDS CMD...: use timeout(1) where it exists (macOS has none).
+with_timeout() {
+  local secs="$1"
+  shift
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "$secs" "$@"
+  else
+    "$@"
+  fi
+}
+
+# win CMD...: run a Windows tool from a directory Windows can resolve (a UNC working directory
+# makes cmd.exe complain), stdout only, CR and NUL removed (wsl.exe --version writes UTF-16).
+# The return code is the tool's.
+win() {
+  (
+    cd /mnt/c 2>/dev/null || cd / || exit 1
+    with_timeout 30 "$@"
+  ) 2>/dev/null | tr -d '\r\000'
+}
+
+# winall CMD...: as win, but stderr is kept (PowerShell reports errors there).
+winall() {
+  (
+    cd /mnt/c 2>/dev/null || cd / || exit 1
+    with_timeout 30 "$@"
+  ) 2>&1 | tr -d '\r\000'
+}
+
+mode_of() {
+  stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1" 2>/dev/null
+}
+
+PROC_VERSION_FILE="${FH_DOCTOR_PROC_VERSION:-/proc/version}"
+KERNEL_STRING="$(head -n 1 "$PROC_VERSION_FILE" 2>/dev/null | cut -c1-110 || true)"
+[ -n "$KERNEL_STRING" ] || KERNEL_STRING="$(uname -sr 2>/dev/null || echo unknown)"
+IS_WSL=0
+if printf '%s' "$KERNEL_STRING" | grep -qi 'microsoft' && printf '%s' "$KERNEL_STRING" | grep -qi 'wsl2'; then
+  IS_WSL=1
+fi
+
+skip_win() {
+  emit SKIP "$1" "Windows-only check; this host is not WSL2"
+}
+
+# Windows-side tool missing from PATH on WSL: interop is off or the tool was renamed.
+need_win_tool() {
+  local id="$1" tool="$2"
+  if command -v "$tool" >/dev/null 2>&1; then
+    return 0
+  fi
+  emit WARN "$id" "$tool not found on PATH (is Windows interop switched off in /etc/wsl.conf?)"
+  return 1
+}
+
+TASK_NAMES=("FamilyHub WSL keep-alive" "FamilyHub refresh at logon" "FamilyHub refresh daily")
+
+chk_host_wsl() {
+  if [ "$IS_WSL" = 1 ]; then
+    emit INFO host.wsl "WSL2 kernel: $KERNEL_STRING"
+  else
+    emit INFO host.wsl "not WSL2 (kernel: $KERNEL_STRING); Windows-only checks are skipped"
+  fi
+}
+
+chk_wsl_version() {
+  [ "$IS_WSL" = 1 ] || { skip_win wsl.version; return; }
+  need_win_tool wsl.version wsl.exe || return
+  local out line ver
+  out="$(win wsl.exe --version || true)"
+  line="$(printf '%s\n' "$out" | grep -i -m1 '^WSL' || true)"
+  [ -n "$line" ] || line="$(printf '%s\n' "$out" | head -n 1)"
+  ver="$(printf '%s' "$line" | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?' | head -n 1 || true)"
+  if [ -z "$ver" ]; then
+    emit WARN wsl.version "could not read the WSL version from wsl.exe --version; write it down by hand for the bring-up record"
+    return
+  fi
+  case "$ver" in
+    2.9.*)
+      emit WARN wsl.version "WSL $ver: the 2.9.x builds broke Docker ports in mirrored mode (research Pitfall 4); do not run wsl --update, and see the Fallback ladder in dev/README.md if Preview is unreachable"
+      ;;
+    *)
+      emit PASS wsl.version "WSL $ver (write it in the bring-up record)"
+      ;;
+  esac
+}
+
+chk_wsl_mirrored() {
+  [ "$IS_WSL" = 1 ] || { skip_win wsl.mirrored; return; }
+  need_win_tool wsl.mirrored cmd.exe || return
+  local cfg
+  cfg="$(win cmd.exe /c 'type %UserProfile%\.wslconfig' || true)"
+  if [ -z "$cfg" ]; then
+    emit FAIL wsl.mirrored "no .wslconfig found in the Windows user profile; run scripts/windows/setup-host.ps1 (elevated) to set networkingMode=mirrored"
+  elif printf '%s\n' "$cfg" | grep -Eiq '^[[:space:]]*networkingMode[[:space:]]*=[[:space:]]*mirrored[[:space:]]*$'; then
+    emit PASS wsl.mirrored "networkingMode=mirrored is set in .wslconfig"
+  else
+    emit FAIL wsl.mirrored ".wslconfig does not contain networkingMode=mirrored under [wsl2]; run scripts/windows/setup-host.ps1 (elevated), then wsl --shutdown"
+  fi
+}
+
+chk_wsl_systemd() {
+  [ "$IS_WSL" = 1 ] || { skip_win wsl.systemd; return; }
+  local conf="${FH_DOCTOR_WSL_CONF:-/etc/wsl.conf}" state
+  if ! { [ -f "$conf" ] && grep -Eiq '^[[:space:]]*systemd[[:space:]]*=[[:space:]]*true' "$conf"; }; then
+    emit FAIL wsl.systemd "systemd=true is missing under [boot] in $conf (Docker needs it); add it, then wsl --shutdown"
+    return
+  fi
+  state="$(systemctl is-system-running 2>/dev/null || true)"
+  if [ -z "$state" ] || [ "$state" = "offline" ]; then
+    emit FAIL wsl.systemd "systemd is enabled in $conf but not running (state: ${state:-no systemctl}); run wsl --shutdown from Windows and open Ubuntu again"
+  else
+    emit PASS wsl.systemd "systemd is enabled and running (state: $state)"
+  fi
+}
+
+chk_docker_engine() {
+  if ! command -v docker >/dev/null 2>&1; then
+    emit FAIL docker.engine "docker is not installed; install Docker Engine inside Ubuntu (not Docker Desktop), see dev/README.md One-time laptop setup"
+    return
+  fi
+  local os rc
+  os="$(with_timeout 30 docker info --format '{{.OperatingSystem}}' 2>/dev/null)"
+  rc=$?
+  os="$(printf '%s' "$os" | tr -d '\r' | head -n 1)"
+  if [ "$rc" -ne 0 ] || [ -z "$os" ]; then
+    emit FAIL docker.engine "docker is installed but the daemon does not answer; try sudo systemctl enable --now docker, and check you are in the docker group"
+  elif printf '%s' "$os" | grep -qi 'docker desktop'; then
+    emit FAIL docker.engine "this is Docker Desktop ($os); Dev and Preview need Docker Engine installed inside Ubuntu (D-23)"
+  else
+    emit PASS docker.engine "Docker Engine answers ($os)"
+  fi
+}
+
+chk_docker_compose() {
+  if ! command -v docker >/dev/null 2>&1; then
+    emit FAIL docker.compose "docker is not installed, so docker compose is missing too"
+    return
+  fi
+  local v major
+  v="$(with_timeout 30 docker compose version --short 2>/dev/null | tr -d '\r' | head -n 1 || true)"
+  v="${v#v}"
+  major="${v%%.*}"
+  case "$major" in
+    ''|*[!0-9]*)
+      emit FAIL docker.compose "docker compose version did not answer; install the docker-compose-plugin package"
+      return
+      ;;
+  esac
+  if [ "$major" -ge 2 ]; then
+    emit PASS docker.compose "Docker Compose $v"
+  else
+    emit FAIL docker.compose "Docker Compose $v is older than v2; install the docker-compose-plugin package"
+  fi
+}
+
+chk_repo_location() {
+  local root="${FH_DOCTOR_ROOT:-$FH_ROOT}"
+  case "$root" in
+    /mnt/*)
+      emit FAIL repo.location "the repository is at $root, on a Windows drive; file permissions and speed are wrong there. Clone it into the Ubuntu home directory (for example ~/HA-Family-Hub)"
+      ;;
+    *)
+      emit PASS repo.location "the repository is at $root"
+      ;;
+  esac
+}
+
+chk_env_hostfile() {
+  if [ "$HOSTFILE_FOUND" != 1 ]; then
+    emit FAIL env.hostfile "dev/host.env not found; copy dev/host.env.example to dev/host.env and fill it in"
+    return
+  fi
+  local missing=()
+  [ -n "${TZ:-}" ] || missing+=("TZ")
+  [ -n "${PREVIEW_HOST_IP:-}" ] || missing+=("PREVIEW_HOST_IP")
+  if [ "${#missing[@]}" -gt 0 ]; then
+    emit FAIL env.hostfile "dev/host.env has no value for $(joined "${missing[@]}")"
+  elif ! [[ "${PREVIEW_HOST_IP}" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+    emit FAIL env.hostfile "PREVIEW_HOST_IP is not a dotted IPv4 address (${PREVIEW_HOST_IP})"
+  else
+    emit PASS env.hostfile "dev/host.env sets TZ and PREVIEW_HOST_IP"
+  fi
+}
+
+chk_secrets_perms() {
+  local dir="$FH_STATE_DIR/.ha-secrets" certs="$FH_STATE_DIR/.ha-certs"
+  local bad=() checked=0 m f
+  if [ -d "$dir" ]; then
+    checked=1
+    m="$(mode_of "$dir" || true)"
+    [ "$m" = "700" ] || bad+=("dev/.ha-secrets is ${m:-unreadable}, want 700")
+    for f in "$dir"/* "$dir"/.[!.]*; do
+      [ -f "$f" ] || continue
+      m="$(mode_of "$f" || true)"
+      [ "$m" = "600" ] || bad+=("dev/.ha-secrets/$(basename "$f") is ${m:-unreadable}, want 600")
+    done
+  fi
+  for f in ca.key leaf.key privkey.pem; do
+    [ -f "$certs/$f" ] || continue
+    checked=1
+    m="$(mode_of "$certs/$f" || true)"
+    [ "$m" = "600" ] || bad+=("dev/.ha-certs/$f is ${m:-unreadable}, want 600")
+  done
+  if [ "${#bad[@]}" -gt 0 ]; then
+    emit FAIL secrets.perms "$(joined "${bad[@]}"); fix with chmod 700 on the directory and chmod 600 on the files"
+  elif [ "$checked" = 0 ]; then
+    emit INFO secrets.perms "dev/.ha-secrets and dev/.ha-certs do not exist yet; the first scripts/dev-up creates them"
+  else
+    emit PASS secrets.perms "secrets directory is 700 and the secret files are 600"
+  fi
+}
+
+chk_clock_skew() {
+  [ "$IS_WSL" = 1 ] || { skip_win clock.skew; return; }
+  need_win_tool clock.skew powershell.exe || return
+  local here win_now diff
+  here="$(date -u +%s)"
+  win_now="$(win powershell.exe -NoProfile -Command '[DateTimeOffset]::UtcNow.ToUnixTimeSeconds()' | tr -d '[:space:]' || true)"
+  case "$win_now" in
+    ''|*[!0-9]*)
+      emit WARN clock.skew "could not read the Windows clock from powershell.exe"
+      return
+      ;;
+  esac
+  diff=$((here - win_now))
+  [ "$diff" -ge 0 ] || diff=$((0 - diff))
+  if [ "$diff" -gt 60 ]; then
+    emit FAIL clock.skew "the WSL and Windows clocks differ by ${diff}s (limit 60s); WSL's clock drifts after sleep. Run wsl --shutdown, or sudo hwclock -s inside Ubuntu"
+  else
+    emit PASS clock.skew "the WSL and Windows clocks differ by ${diff}s"
+  fi
+}
+
+chk_ports_free() {
+  local problems=() unknowns=() have_any=0 p a b rest out ssout lines docker_ports
+  if [ "$IS_WSL" = 1 ]; then
+    if command -v netsh.exe >/dev/null 2>&1; then
+      have_any=1
+      out="$(win netsh.exe interface ipv4 show excludedportrange protocol=tcp || true)"
+      for p in 8124 8130; do
+        while read -r a b rest; do
+          case "$a$b" in ''|*[!0-9]*) continue ;; esac
+          if [ "$p" -ge "$a" ] && [ "$p" -le "$b" ]; then
+            problems+=("$p is inside the Windows excluded port range $a-$b")
+          fi
+        done <<<"$out"
+      done
+    else
+      unknowns+=("netsh.exe not found, so Windows excluded port ranges were not checked")
+    fi
+  fi
+  if command -v ss >/dev/null 2>&1; then
+    have_any=1
+    ssout="$(ss -ltnp 2>/dev/null || true)"
+    docker_ports=""
+    if command -v docker >/dev/null 2>&1; then
+      docker_ports="$(with_timeout 20 docker ps --format '{{.Ports}}' 2>/dev/null || true)"
+    fi
+    for p in 8124 8130; do
+      lines="$(printf '%s\n' "$ssout" | awk -v suffix=":$p" '{ n = length($4); if (n >= length(suffix) && substr($4, n - length(suffix) + 1) == suffix) print }')"
+      [ -n "$lines" ] || continue
+      if printf '%s' "$lines" | grep -q 'docker-proxy'; then
+        continue
+      elif printf '%s' "$docker_ports" | grep -q ":$p->"; then
+        continue
+      elif printf '%s' "$lines" | grep -q 'users:'; then
+        problems+=("$p is held by $(printf '%s' "$lines" | grep -o 'users:((\"[^\"]*\"' | head -n 1 | sed 's/users:((//; s/\"//g')")
+      else
+        unknowns+=("$p is in use and its owner could not be seen (run doctor with sudo to see it)")
+      fi
+    done
+  fi
+  if [ "${#problems[@]}" -gt 0 ]; then
+    emit FAIL ports.free "$(joined "${problems[@]}"); Dev needs 8130 and Preview needs 8124"
+  elif [ "${#unknowns[@]}" -gt 0 ]; then
+    emit WARN ports.free "$(joined "${unknowns[@]}")"
+  elif [ "$have_any" = 0 ]; then
+    emit SKIP ports.free "neither ss nor netsh.exe is available to look at ports 8124 and 8130"
+  else
+    emit PASS ports.free "ports 8124 and 8130 are free, or held by Docker"
+  fi
+}
+
+chk_net_ip() {
+  [ "$IS_WSL" = 1 ] || { skip_win net.ip; return; }
+  if [ -z "${PREVIEW_HOST_IP:-}" ]; then
+    emit SKIP net.ip "PREVIEW_HOST_IP is not set (see env.hostfile)"
+    return
+  fi
+  need_win_tool net.ip powershell.exe || return
+  local addrs
+  addrs="$(win powershell.exe -NoProfile -Command 'Get-NetIPAddress -AddressFamily IPv4 | Select -Expand IPAddress' | tr -s '[:space:]' ' ' || true)"
+  if [ -z "${addrs// /}" ]; then
+    emit WARN net.ip "could not list the Windows IPv4 addresses from powershell.exe"
+  elif printf ' %s ' "$addrs" | grep -q " ${PREVIEW_HOST_IP//./\\.} "; then
+    emit PASS net.ip "PREVIEW_HOST_IP $PREVIEW_HOST_IP is one of the Windows addresses"
+  else
+    emit FAIL net.ip "PREVIEW_HOST_IP $PREVIEW_HOST_IP is not a Windows address (Windows has:${addrs% }); fix dev/host.env, or fix the router DHCP reservation, then run scripts/make-certs again"
+  fi
+}
+
+chk_cert_san() {
+  local certs="$FH_STATE_DIR/.ha-certs" leaf ca san
+  leaf="$certs/leaf.crt"
+  ca="$certs/ca.crt"
+  if [ ! -f "$leaf" ] || [ ! -f "$ca" ]; then
+    emit FAIL cert.san "no certificate in dev/.ha-certs; run scripts/make-certs"
+    return
+  fi
+  if ! command -v openssl >/dev/null 2>&1; then
+    emit FAIL cert.san "openssl is not installed, so the certificate cannot be checked"
+    return
+  fi
+  if [ -z "${PREVIEW_HOST_IP:-}" ]; then
+    emit SKIP cert.san "PREVIEW_HOST_IP is not set (see env.hostfile)"
+    return
+  fi
+  san="$(openssl x509 -in "$leaf" -noout -ext subjectAltName 2>/dev/null | tr '\n' ' ' || true)"
+  if ! printf '%s ' "$san" | grep -Eq "IP Address:${PREVIEW_HOST_IP//./\\.}([,[:space:]]|\$)"; then
+    emit FAIL cert.san "the certificate does not list IP:$PREVIEW_HOST_IP (it has: ${san:-nothing readable}); run scripts/make-certs, which issues a new leaf for the address in dev/host.env"
+    return
+  fi
+  if ! openssl verify -CAfile "$ca" "$leaf" 2>&1 | grep -q ': OK$'; then
+    emit FAIL cert.san "openssl verify does not accept leaf.crt against ca.crt; remove dev/.ha-certs/leaf.crt and run scripts/make-certs"
+    return
+  fi
+  if ! openssl x509 -in "$leaf" -noout -checkend 0 >/dev/null 2>&1; then
+    emit FAIL cert.san "the leaf certificate has expired; remove dev/.ha-certs/leaf.crt and run scripts/make-certs"
+  elif ! openssl x509 -in "$leaf" -noout -checkend $((30 * 86400)) >/dev/null 2>&1; then
+    emit WARN cert.san "the leaf certificate has fewer than 30 days left; remove dev/.ha-certs/leaf.crt and run scripts/make-certs (ca.crt stays the same, her phone keeps trusting it)"
+  elif ! openssl x509 -in "$ca" -noout -checkend $((30 * 86400)) >/dev/null 2>&1; then
+    emit WARN cert.san "ca.crt has fewer than 30 days left; a new CA must be installed again on her phone and in Windows"
+  else
+    emit PASS cert.san "the certificate covers $PREVIEW_HOST_IP, is signed by ca.crt and has more than 30 days left"
+  fi
+}
+
+chk_fw_hyperv() {
+  [ "$IS_WSL" = 1 ] || { skip_win fw.hyperv; return; }
+  need_win_tool fw.hyperv powershell.exe || return
+  local out
+  out="$(winall powershell.exe -NoProfile -Command 'Get-NetFirewallHyperVRule -Name FamilyHubPreview' || true)"
+  if printf '%s' "$out" | grep -Eiq 'denied|UnauthorizedAccess|elevat|administrator'; then
+    emit WARN fw.hyperv "could not read the rule without administrator rights; in an elevated PowerShell run: Get-NetFirewallHyperVRule -Name FamilyHubPreview"
+  elif printf '%s' "$out" | grep -Eiq 'No MSFT_NetFirewallHyperVRule|ObjectNotFound|not found|cannot find'; then
+    emit FAIL fw.hyperv "the Hyper-V firewall rule FamilyHubPreview does not exist, so her phone cannot reach port 8124; run scripts/windows/setup-host.ps1 (elevated)"
+  elif printf '%s' "$out" | grep -q 'FamilyHubPreview'; then
+    emit PASS fw.hyperv "the Hyper-V firewall rule FamilyHubPreview exists"
+  else
+    emit WARN fw.hyperv "could not read the Hyper-V firewall rule; in an elevated PowerShell run: Get-NetFirewallHyperVRule -Name FamilyHubPreview"
+  fi
+}
+
+chk_tasks_scheduled() {
+  [ "$IS_WSL" = 1 ] || { skip_win tasks.scheduled; return; }
+  need_win_tool tasks.scheduled schtasks.exe || return
+  local missing=() name
+  for name in "${TASK_NAMES[@]}"; do
+    if ! win schtasks.exe /query /tn "$name" >/dev/null; then
+      missing+=("$name")
+    fi
+  done
+  if [ "${#missing[@]}" -eq 0 ]; then
+    emit PASS tasks.scheduled "all 3 FamilyHub scheduled tasks exist"
+  else
+    emit WARN tasks.scheduled "missing or unreadable: $(joined "${missing[@]}"); run scripts/windows/setup-host.ps1 (elevated)"
+  fi
+}
+
+chk_wifi_randommac() {
+  [ "$IS_WSL" = 1 ] || { skip_win wifi.randommac; return; }
+  emit INFO wifi.randommac "doctor cannot read this; check it by hand: Windows Settings > Network & internet > Wi-Fi > <home network> > Random hardware addresses = Off, then make the router DHCP reservation for that adapter's real address (D-24)"
+}
+
+chk_host_wsl
+chk_wsl_version
+chk_wsl_mirrored
+chk_wsl_systemd
+chk_docker_engine
+chk_docker_compose
+chk_repo_location
+chk_env_hostfile
+chk_secrets_perms
+chk_clock_skew
+chk_ports_free
+chk_net_ip
+chk_cert_san
+chk_fw_hyperv
+chk_tasks_scheduled
+chk_wifi_randommac
+
+echo "doctor: $N_PASS pass, $N_WARN warn, $N_FAIL fail, $N_SKIP skip"
+[ "$N_FAIL" -eq 0 ] || exit 1
+exit 0

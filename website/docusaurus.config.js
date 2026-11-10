@@ -18,10 +18,10 @@ const config = {
     },
   },
 
-  url: 'https://jvarhol.github.io',
+  url: 'https://future-bridge-ai.github.io',
   baseUrl: '/HA-Family-Hub/',
 
-  organizationName: 'JVarhol',
+  organizationName: 'Future-Bridge-AI',
   projectName: 'HA-Family-Hub',
   deploymentBranch: 'gh-pages',
   trailingSlash: false,
@@ -57,7 +57,7 @@ const config = {
           path: 'docs',
           routeBasePath: 'docs',
           sidebarPath: './sidebars.js',
-          editUrl: 'https://github.com/JVarhol/HA-Family-Hub/tree/main/website/',
+          editUrl: 'https://github.com/Future-Bridge-AI/HA-Family-Hub/tree/main/website/',
         },
         blog: false,
         theme: {
@@ -94,7 +94,7 @@ const config = {
             position: 'right',
           },
           {
-            href: 'https://github.com/JVarhol/HA-Family-Hub',
+            href: 'https://github.com/Future-Bridge-AI/HA-Family-Hub',
             label: 'GitHub',
             position: 'right',
           },
@@ -121,7 +121,7 @@ const config = {
               },
               {
                 label: 'Issues',
-                href: 'https://github.com/JVarhol/HA-Family-Hub/issues',
+                href: 'https://github.com/Future-Bridge-AI/HA-Family-Hub/issues',
               },
             ],
           },
@@ -130,16 +130,16 @@ const config = {
             items: [
               {
                 label: 'GitHub',
-                href: 'https://github.com/JVarhol/HA-Family-Hub',
+                href: 'https://github.com/Future-Bridge-AI/HA-Family-Hub',
               },
               {
                 label: 'Releases',
-                href: 'https://github.com/JVarhol/HA-Family-Hub/releases',
+                href: 'https://github.com/Future-Bridge-AI/HA-Family-Hub/releases',
               },
             ],
           },
         ],
-        copyright: `Copyright © ${new Date().getFullYear()} Bordello Labs. Licensed under GPL-3.0. Built with Docusaurus.`,
+        copyright: `Copyright © ${new Date().getFullYear()} Bordello Labs. Family Hub fork by Future-Bridge-AI, based on JVarhol/HA-Family-Hub. Licensed under GPL-3.0. Built with Docusaurus.`,
       },
       prism: {
         theme: prismThemes.github,
