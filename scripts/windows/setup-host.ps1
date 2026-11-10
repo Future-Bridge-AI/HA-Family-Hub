@@ -150,7 +150,10 @@ $refreshArgs = '-d {0} -e bash -lc "{1}/scripts/refresh-preview --yes"' -f $Dist
 
 # Keep WSL alive: WSL stops the distribution when no Windows process holds it open, and a service
 # inside Linux does not count. No time limit, restart if it ever stops.
-$keepAliveAction = New-ScheduledTaskAction -Execute "wsl.exe" -Argument ("-d {0} -e sleep infinity" -f $Distro)
+# It runs through "conhost.exe --headless": an interactive task running a console program otherwise
+# keeps a window open all day, and closing it stops Preview. The refresh tasks stay plain wsl.exe
+# (a brief window) because conhost does not pass the exit code on, and "Last Result" must show failures.
+$keepAliveAction = New-ScheduledTaskAction -Execute "conhost.exe" -Argument ("--headless wsl.exe -d {0} -e sleep infinity" -f $Distro)
 $keepAliveTrigger = New-ScheduledTaskTrigger -AtLogOn -User $userId
 $keepAliveSettings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 5 -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
 Register-ScheduledTask -TaskName "FamilyHub WSL keep-alive" -Action $keepAliveAction -Trigger $keepAliveTrigger -Settings $keepAliveSettings -Principal $principal -Description "Keeps WSL running so Family Hub Preview stays up while you are logged in." -Force | Out-Null
